@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, ListFilter, Calendar } from 'lucide-react'
 import { getCircadianCosmicTheme } from '@/lib/spaceAtmosphere'
-import { useGalaxyStore } from '@/store/galaxyStore'
 
 interface HUDProps {
   onAddNode: () => void
@@ -21,7 +20,6 @@ interface DateInfo {
 }
 
 export default function HUD({ onAddNode, onShowList }: HUDProps) {
-  const { currentUser, setShowBrainSwitcher } = useGalaxyStore()
   const [isHovered, setIsHovered] = useState(false)
   const [themeName, setThemeName] = useState('Cosmic Void')
   const [dateInfo, setDateInfo] = useState<DateInfo>({
@@ -61,37 +59,13 @@ export default function HUD({ onAddNode, onShowList }: HUDProps) {
   const { day, month, year, weekday, fullDate, dayOfWeekIndex, weekDays } = dateInfo
 
   return (
-    <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent">
-      {/* ── LEFT: Active Brain Consciousness Pill & Cosmic Indicator ── */}
-      <div className="flex items-center gap-3 pointer-events-auto">
-        <button
-          onClick={() => setShowBrainSwitcher(true)}
-          className="group flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-500/30 bg-black/80 hover:bg-cyan-950/40 hover:border-cyan-400/60 backdrop-blur-md transition-all cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.1)] active:scale-95"
-          title="Switch or Create Brain Profile"
-        >
-          <div
-            className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
-            style={{
-              backgroundColor: `${currentUser?.avatarColor || '#00f0ff'}30`,
-              color: currentUser?.avatarColor || '#00f0ff',
-            }}
-          >
-            🧠
-          </div>
-          <span className="text-xs font-bold text-white tracking-wide group-hover:text-cyan-300 transition-colors">
-            {currentUser?.name || 'root'}
-          </span>
-          <span className="text-[10px] font-mono text-white/40 group-hover:text-cyan-400 transition-colors flex items-center gap-0.5">
-            ⇄ Switch
-          </span>
-        </button>
-
-        <div className="hidden md:flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
-          <span className="text-[10px] tracking-[0.22em] font-mono uppercase text-white/70 select-none">
-            ✦ {themeName}
-          </span>
-        </div>
+    <header className="absolute top-0 left-0 right-0 z-20 pointer-events-none flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent select-none">
+      {/* ── LEFT: Pure Minimal Atmosphere Indicator ── */}
+      <div className="flex items-center gap-2 pointer-events-auto opacity-40 hover:opacity-100 transition-opacity">
+        <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse" />
+        <span className="text-[10px] tracking-[0.22em] font-mono uppercase text-white/60 select-none">
+          ✦ {themeName}
+        </span>
       </div>
 
       {/* ── CENTER: Sleek Date Capsule (Only Day/Month/Year, reveals details on hover) ── */}
@@ -139,12 +113,12 @@ export default function HUD({ onAddNode, onShowList }: HUDProps) {
               ))}
             </div>
             <span className="text-white/20">|</span>
-            <span className="text-cyan-300/80 tracking-wider">{themeName}</span>
+            <span className="text-white/70 tracking-wider">{themeName}</span>
           </div>
         </div>
       </div>
 
-      {/* ── RIGHT: Skills and Add Node (+) Buttons placed together cleanly ── */}
+      {/* ── RIGHT: Skills and Add Node (+) Buttons ── */}
       <div className="flex items-center gap-2.5 pointer-events-auto">
         <button
           onClick={onShowList}

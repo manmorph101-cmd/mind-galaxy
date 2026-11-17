@@ -13,6 +13,7 @@ import {
   Music,
   Volume2,
   VolumeX,
+  LogOut,
 } from 'lucide-react'
 import { useGalaxyStore } from '@/store/galaxyStore'
 import { playSelectSound, getSoundVolume, setSoundVolume } from '@/lib/sound'
@@ -20,9 +21,10 @@ import { isBgMusicEnabled, toggleBgMusic, getBgMusicVolume, setBgMusicVolume } f
 
 interface SpaceControlsHUDProps {
   onResetCamera: () => void
+  onLogout?: () => void
 }
 
-export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProps) {
+export default function SpaceControlsHUD({ onResetCamera, onLogout }: SpaceControlsHUDProps) {
   const { nodes, edges, addToast, setNodes, setEdges, currentUser, soundMuted, toggleSound } = useGalaxyStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
@@ -183,6 +185,20 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
         >
           <HelpCircle size={14} />
         </button>
+
+        {/* Exit / Logout (Simple small icon) */}
+        {onLogout && (
+          <button
+            onClick={() => {
+              playSelectSound(380)
+              onLogout()
+            }}
+            className="p-2 rounded-xl border border-white/[0.08] bg-black/80 hover:bg-white/[0.1] hover:border-white/20 text-white/40 hover:text-white transition-all cursor-pointer backdrop-blur-md"
+            title="Exit / Switch User"
+          >
+            <LogOut size={13} />
+          </button>
+        )}
       </div>
 
       {/* Settings / Controls Modal */}

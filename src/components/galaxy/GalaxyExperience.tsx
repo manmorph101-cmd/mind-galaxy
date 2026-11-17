@@ -76,53 +76,40 @@ export default function GalaxyExperience() {
     [setCurrentUser, loadGalaxyForUser, selectNode]
   )
 
-  // 3. Initial Boot: Load Users list & Restore Last Active Brain or default to root
+  // 3. Initial Boot: Restore Last Active Brain from LocalStorage
   useEffect(() => {
     initBgMusic()
-    const initApp = async () => {
-      try {
-        const res = await fetch('/api/users')
-        const data = (await res.json()) as { users: BrainUser[] }
-        const users = data.users || []
-        setAllUsers(users)
-
-        // Check localStorage for previously selected brain
-        let savedUser: BrainUser | null = null
-        if (typeof window !== 'undefined') {
-          const raw = localStorage.getItem(ACTIVE_USER_STORAGE_KEY)
-          if (raw) {
-            try {
-              savedUser = JSON.parse(raw)
-            } catch {
-              savedUser = null
-            }
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(ACTIVE_USER_STORAGE_KEY)
+      if (raw) {
+        try {
+          const savedUser: BrainUser = JSON.parse(raw)
+          if (savedUser && savedUser.id) {
+            setCurrentUser(savedUser)
+            loadGalaxyForUser(savedUser.id)
+            return
           }
+        } catch {
+          // ignore invalid json
         }
-
-        // If saved user exists in current users list, reconnect to it
-        if (savedUser && users.some((u) => u.id === savedUser?.id)) {
-          setCurrentUser(savedUser)
-          loadGalaxyForUser(savedUser.id)
-        } else {
-          // If no saved user, default to 'root' (which has all existing data!)
-          const rootUser = users.find((u) => u.id === 'root') || users[0]
-          if (rootUser) {
-            setCurrentUser(rootUser)
-            loadGalaxyForUser(rootUser.id)
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(ACTIVE_USER_STORAGE_KEY, JSON.stringify(rootUser))
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Failed to initialize app users:', err)
       }
+      // If no saved user, stay in login state (pure black screen)
+      setCurrentUser(null)
     }
+  }, [setCurrentUser, loadGalaxyForUser])
 
-    initApp()
-  }, [setAllUsers, setCurrentUser, loadGalaxyForUser])
+  // 4. Logout / Exit User handler
+  const handleLogout = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ACTIVE_USER_STORAGE_KEY)
+    }
+    setCurrentUser(null)
+    setNodes([])
+    setEdges([])
+    selectNode(null)
+  }, [setCurrentUser, setNodes, setEdges, selectNode])
 
-  // 4. Camera Reset Dispatcher
+  // 5. Camera Reset Dispatcher
   const handleResetCamera = useCallback(() => {
     selectNode(null)
     if (typeof window !== 'undefined') {
@@ -174,8 +161,8 @@ export default function GalaxyExperience() {
       {/* Skills & goals overview drawer */}
       <SkillsListPanel open={listOpen} onClose={() => setListOpen(false)} />
 
-      {/* Bottom-right Space Controls (Reset view, backup export/import) */}
-      <SpaceControlsHUD onResetCamera={handleResetCamera} />
+      {/* Bottom-right Space Controls (Reset view, sound, backup export/import, exit) */}
+      <SpaceControlsHUD onResetCamera={handleResetCamera} onLogout={handleLogout} />
 
       {/* "Create Your Brain" Landing Screen / Profile Switcher Modal */}
       <CreateBrainModal onSelectUser={handleSelectUser} />

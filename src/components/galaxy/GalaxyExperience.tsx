@@ -9,8 +9,8 @@ import AddNodeForm from '@/components/panels/AddNodeForm'
 import SkillsListPanel from '@/components/panels/SkillsListPanel'
 import ToastNotification from '@/components/ui/ToastNotification'
 import SpaceControlsHUD from '@/components/galaxy/SpaceControlsHUD'
-import type { GalaxyNode, GalaxyEdge } from '@/types'
-import { initBgMusic } from '@/lib/bgMusic'
+import CreateBrainModal from '@/components/galaxy/CreateBrainModal'
+import type { GalaxyNode, GalaxyEdge, BrainUser } from '@/types'
 
 // Dynamic import with SSR off for WebGL Three.js canvas
 const CosmicSpace3D = dynamic(() => import('@/components/galaxy/CosmicSpace3D'), {
@@ -25,31 +25,102 @@ const CosmicSpace3D = dynamic(() => import('@/components/galaxy/CosmicSpace3D'),
   ),
 })
 
+const ACTIVE_USER_STORAGE_KEY = 'mind_galaxy_active_user'
+
 export default function GalaxyExperience() {
-  const { setNodes, setEdges, setLoading, selectNode } = useGalaxyStore()
+  const {
+    currentUser,
+    setCurrentUser,
+    setAllUsers,
+    setNodes,
+    setEdges,
+    setLoading,
+    selectNode,
+  } = useGalaxyStore()
+
   const [addOpen, setAddOpen] = useState(false)
   const [listOpen, setListOpen] = useState(false)
 
-  // 1. Initial Data Fetch & Audio Start
-  useEffect(() => {
-    initBgMusic()
-    const load = async () => {
+  // 1. Load Nodes & Edges for a specific Brain
+  const loadGalaxyForUser = useCallback(
+    async (userId: string) => {
       setLoading(true)
       try {
-        const res = await fetch('/api/nodes')
+        const res = await fetch(`/api/nodes?userId=${encodeURIComponent(userId)}`)
         const data = (await res.json()) as { nodes: GalaxyNode[]; edges: GalaxyEdge[] }
-        setNodes(data.nodes)
-        setEdges(data.edges)
+        setNodes(data.nodes || [])
+        setEdges(data.edges || [])
       } catch (err) {
-        console.error('Failed to load galaxy data:', err)
+        console.error('Failed to load galaxy data for user:', err)
       } finally {
         setLoading(false)
       }
-    }
-    load()
-  }, [setNodes, setEdges, setLoading])
+    },
+    [setLoading, setNodes, setEdges]
+  )
 
-  // 2. Camera Reset Dispatcher
+  // 2. Select / Switch User
+  const handleSelectUser = useCallback(
+    (user: BrainUser) => {
+      setCurrentUser(user)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(ACTIVE_USER_STORAGE_KEY, JSON.stringify(user))
+      }
+      loadGalaxyForUser(user.id)
+      selectNode(null)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mindgalaxy:resetCamera'))
+      }
+    },
+    [setCurrentUser, loadGalaxyForUser, selectNode]
+  )
+
+  // 3. Initial Boot: Load Users list & Restore Last Active Brain or default to root
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        const res = await fetch('/api/users')
+        const data = (await res.json()) as { users: BrainUser[] }
+        const users = data.users || []
+        setAllUsers(users)
+
+        // Check localStorage for previously selected brain
+        let savedUser: BrainUser | null = null
+        if (typeof window !== 'undefined') {
+          const raw = localStorage.getItem(ACTIVE_USER_STORAGE_KEY)
+          if (raw) {
+            try {
+              savedUser = JSON.parse(raw)
+            } catch {
+              savedUser = null
+            }
+          }
+        }
+
+        // If saved user exists in current users list, reconnect to it
+        if (savedUser && users.some((u) => u.id === savedUser?.id)) {
+          setCurrentUser(savedUser)
+          loadGalaxyForUser(savedUser.id)
+        } else {
+          // If no saved user, default to 'root' (which has all existing data!)
+          const rootUser = users.find((u) => u.id === 'root') || users[0]
+          if (rootUser) {
+            setCurrentUser(rootUser)
+            loadGalaxyForUser(rootUser.id)
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(ACTIVE_USER_STORAGE_KEY, JSON.stringify(rootUser))
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to initialize app users:', err)
+      }
+    }
+
+    initApp()
+  }, [setAllUsers, setCurrentUser, loadGalaxyForUser])
+
+  // 4. Camera Reset Dispatcher
   const handleResetCamera = useCallback(() => {
     selectNode(null)
     if (typeof window !== 'undefined') {
@@ -57,10 +128,9 @@ export default function GalaxyExperience() {
     }
   }, [selectNode])
 
-  // 3. Global Keyboard Shortcuts
+  // 5. Global Keyboard Shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input or textarea
       const target = e.target as HTMLElement
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')
       if (isInput) return
@@ -90,7 +160,7 @@ export default function GalaxyExperience() {
       {/* 3D Cosmic Space with Starfield, Origin Core, and Synaptic Neurons */}
       <CosmicSpace3D />
 
-      {/* Cybernetic HUD Interface */}
+      {/* Cybernetic HUD Interface with Active Brain Capsule */}
       <HUD onAddNode={() => setAddOpen(true)} onShowList={() => setListOpen(true)} />
 
       {/* Holographic detail panel for selected star */}
@@ -102,8 +172,11 @@ export default function GalaxyExperience() {
       {/* Skills & goals overview drawer */}
       <SkillsListPanel open={listOpen} onClose={() => setListOpen(false)} />
 
-      {/* Bottom-right Space Controls (Reset view, sound, backup export/import) */}
+      {/* Bottom-right Space Controls (Reset view, backup export/import) */}
       <SpaceControlsHUD onResetCamera={handleResetCamera} />
+
+      {/* "Create Your Brain" Landing Screen / Profile Switcher Modal */}
+      <CreateBrainModal onSelectUser={handleSelectUser} />
 
       {/* Synaptic Toast Notifications */}
       <ToastNotification />

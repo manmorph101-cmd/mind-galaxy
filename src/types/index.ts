@@ -1,5 +1,13 @@
 export type NodeType = 'learning' | 'habit' | 'project' | 'task' | 'skill' | 'goal'
 
+export interface BrainUser {
+  id: string
+  name: string
+  createdAt: string
+  avatarColor?: string
+  nodesCount?: number
+}
+
 export interface ProjectMilestone {
   id: string
   title: string
@@ -58,6 +66,7 @@ export interface ProgressLog {
 }
 
 export interface CreateNodeInput {
+  userId?: string
   label?: string
   labels?: string[]
   batchCount?: number

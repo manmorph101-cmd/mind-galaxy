@@ -2,7 +2,7 @@
   "nodes": [
     {
       "id": "habit-1794919245654",
-      "userId": "local-user",
+      "userId": "root",
       "label": "No Fap",
       "category": "Habit & Discipline",
       "type": "habit",
@@ -28,7 +28,7 @@
     },
     {
       "id": "task-1794919258249-0",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Day 1 Streak",
       "category": "Habit & Discipline",
       "type": "task",
@@ -46,7 +46,7 @@
     },
     {
       "id": "learning-1794919301808",
-      "userId": "local-user",
+      "userId": "root",
       "label": "English",
       "category": "Learning & Study",
       "type": "learning",
@@ -70,7 +70,7 @@
     },
     {
       "id": "learning-1794919329139",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Frensh",
       "category": "Learning & Study",
       "type": "learning",
@@ -93,7 +93,7 @@
     },
     {
       "id": "learning-1794919362216",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Blender",
       "category": "Learning & Study",
       "type": "learning",
@@ -116,7 +116,7 @@
     },
     {
       "id": "habit-1794919404918",
-      "userId": "local-user",
+      "userId": "root",
       "label": "gym",
       "category": "Habit & Discipline",
       "type": "habit",
@@ -142,7 +142,7 @@
     },
     {
       "id": "project-1794919429681",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Work",
       "category": "Project & Goal",
       "type": "project",
@@ -164,7 +164,7 @@
     },
     {
       "id": "learning-1794919505647",
-      "userId": "local-user",
+      "userId": "root",
       "label": "SVT",
       "category": "Learning & Study",
       "type": "learning",
@@ -188,7 +188,7 @@
     },
     {
       "id": "task-1794919568385-0",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Day 1 Streak",
       "category": "Habit & Discipline",
       "type": "task",
@@ -206,7 +206,7 @@
     },
     {
       "id": "learning-1794920590673",
-      "userId": "local-user",
+      "userId": "root",
       "label": "Math",
       "category": "Learning & Study",
       "type": "learning",
@@ -230,7 +230,7 @@
     },
     {
       "id": "learning-1794920616316",
-      "userId": "local-user",
+      "userId": "root",
       "label": "PC",
       "category": "Learning & Study",
       "type": "learning",
@@ -256,80 +256,88 @@
   "edges": [
     {
       "id": "edge-1794919245655-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "habit-1794919245654",
       "offset": 0.2861425957213084
     },
     {
       "id": "edge-1794919258249-0-prim",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "habit-1794919245654",
       "toId": "task-1794919258249-0",
       "offset": 0.6443348470220549
     },
     {
       "id": "edge-1794919301808-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794919301808",
       "offset": 0.47832603368511495
     },
     {
       "id": "edge-1794919329139-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794919329139",
       "offset": 0.6977830436684676
     },
     {
       "id": "edge-1794919362216-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794919362216",
       "offset": 0.47927638254581106
     },
     {
       "id": "edge-1794919404918-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "habit-1794919404918",
       "offset": 0.6525453846504763
     },
     {
       "id": "edge-1794919429681-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "project-1794919429681",
       "offset": 0.40762063390377623
     },
     {
       "id": "edge-1794919505647-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794919505647",
       "offset": 0.20491081965878877
     },
     {
       "id": "edge-1794919568385-0-prim",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "habit-1794919404918",
       "toId": "task-1794919568385-0",
       "offset": 0.9119923735926085
     },
     {
       "id": "edge-1794920590673-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794920590673",
       "offset": 0.6862283396849376
     },
     {
       "id": "edge-1794920616316-orig",
-      "userId": "local-user",
+      "userId": "root",
       "fromId": "origin",
       "toId": "learning-1794920616316",
       "offset": 0.4979982881359777
+    }
+  ],
+  "users": [
+    {
+      "id": "root",
+      "name": "root",
+      "createdAt": "2026-11-17T00:00:00.000Z",
+      "avatarColor": "#00f0ff"
     }
   ]
 }

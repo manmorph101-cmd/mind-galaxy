@@ -5,7 +5,6 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { useGalaxyStore } from '@/store/galaxyStore'
 import type { NodeType } from '@/types'
-import { playSelectSound } from '@/lib/sound'
 import { getCelestialColor } from '@/lib/colors'
 import {
   getCircadianCosmicTheme,
@@ -574,7 +573,6 @@ export default function CosmicSpace3D() {
       if (id) {
         selectNode(id)
         triggerExcitation(id)
-        playSelectSound()
       }
     }
 

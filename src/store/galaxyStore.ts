@@ -1,9 +1,8 @@
 import { create } from 'zustand'
-import type { GalaxyNode, GalaxyEdge } from '@/types'
-import { isAudioMuted, setAudioMuted } from '@/lib/sound'
+import type { GalaxyNode, GalaxyEdge, BrainUser } from '@/types'
 import { CELESTIAL_COLORS } from '@/lib/colors'
 
-export const COLORS = CELESTIAL_COLORS.map(c => c.hex)
+export const COLORS = CELESTIAL_COLORS.map((c) => c.hex)
 
 const categoryColorMap: Record<string, string> = {}
 
@@ -11,7 +10,7 @@ export function getCategoryColor(cat: string): string {
   const key = cat.trim().toLowerCase()
   if (!categoryColorMap[key]) {
     const used = Object.values(categoryColorMap)
-    const avail = COLORS.filter(c => !used.includes(c))
+    const avail = COLORS.filter((c) => !used.includes(c))
     categoryColorMap[key] = avail.length
       ? avail[0]
       : COLORS[Math.floor(Math.random() * COLORS.length)]
@@ -32,14 +31,23 @@ interface Camera {
 }
 
 interface GalaxyStore {
+  // Multi-user / Brain profile
+  currentUser: BrainUser | null
+  allUsers: BrainUser[]
+  showBrainSwitcher: boolean
+
+  // Constellation data
   nodes: GalaxyNode[]
   edges: GalaxyEdge[]
   camera: Camera
   selectedNodeId: string | null
   isLoading: boolean
   toasts: ToastItem[]
-  soundMuted: boolean
 
+  // Actions
+  setCurrentUser: (user: BrainUser | null) => void
+  setAllUsers: (users: BrainUser[]) => void
+  setShowBrainSwitcher: (show: boolean) => void
   setNodes: (nodes: GalaxyNode[]) => void
   setEdges: (edges: GalaxyEdge[]) => void
   addNode: (node: GalaxyNode) => void
@@ -54,17 +62,23 @@ interface GalaxyStore {
   getSelectedNode: () => GalaxyNode | null
   addToast: (message: string, type?: 'success' | 'info' | 'streak') => void
   removeToast: (id: string) => void
-  toggleSound: () => void
 }
 
 export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
+  currentUser: null,
+  allUsers: [],
+  showBrainSwitcher: false,
+
   nodes: [],
   edges: [],
   camera: { x: 0, y: 0, zoom: 1 },
   selectedNodeId: null,
   isLoading: false,
   toasts: [],
-  soundMuted: typeof window !== 'undefined' ? isAudioMuted() : false,
+
+  setCurrentUser: (currentUser) => set({ currentUser }),
+  setAllUsers: (allUsers) => set({ allUsers }),
+  setShowBrainSwitcher: (showBrainSwitcher) => set({ showBrainSwitcher }),
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -89,7 +103,7 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
   removeNode: (id) =>
     set((s) => {
       const toDeleteIds = new Set<string>([id])
-      s.nodes.forEach(n => {
+      s.nodes.forEach((n) => {
         if (n.parentId === id || n.skillId === id) toDeleteIds.add(n.id)
       })
       return {
@@ -120,12 +134,6 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
   },
 
   removeToast: (id) => {
-    set((s) => ({ toasts: s.toasts.filter(t => t.id !== id) }))
-  },
-
-  toggleSound: () => {
-    const next = !get().soundMuted
-    setAudioMuted(next)
-    set({ soundMuted: next })
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
   },
 }))

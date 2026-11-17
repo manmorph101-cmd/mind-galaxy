@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { GalaxyNode, GalaxyEdge, BrainUser } from '@/types'
 import { CELESTIAL_COLORS } from '@/lib/colors'
+import { isAudioMuted, setAudioMuted } from '@/lib/sound'
 
 export const COLORS = CELESTIAL_COLORS.map((c) => c.hex)
 
@@ -43,6 +44,7 @@ interface GalaxyStore {
   selectedNodeId: string | null
   isLoading: boolean
   toasts: ToastItem[]
+  soundMuted: boolean
 
   // Actions
   setCurrentUser: (user: BrainUser | null) => void
@@ -62,6 +64,7 @@ interface GalaxyStore {
   getSelectedNode: () => GalaxyNode | null
   addToast: (message: string, type?: 'success' | 'info' | 'streak') => void
   removeToast: (id: string) => void
+  toggleSound: () => void
 }
 
 export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
@@ -75,6 +78,7 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
   selectedNodeId: null,
   isLoading: false,
   toasts: [],
+  soundMuted: typeof window !== 'undefined' ? isAudioMuted() : false,
 
   setCurrentUser: (currentUser) => set({ currentUser }),
   setAllUsers: (allUsers) => set({ allUsers }),
@@ -135,5 +139,11 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
 
   removeToast: (id) => {
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
+  },
+
+  toggleSound: () => {
+    const next = !get().soundMuted
+    setAudioMuted(next)
+    set({ soundMuted: next })
   },
 }))

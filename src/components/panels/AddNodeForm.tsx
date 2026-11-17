@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Sparkles, BookOpen, Flame, Target, ArrowLeft } from 'lucide-react'
 import { useGalaxyStore } from '@/store/galaxyStore'
 import type { GalaxyNode, GalaxyEdge, NodeType } from '@/types'
+import { playIgniteSound } from '@/lib/sound'
 import { CELESTIAL_COLORS, getCelestialColor } from '@/lib/colors'
 
 const NODE_TYPES: Array<{
@@ -130,6 +131,7 @@ export default function AddNodeForm({ open, onClose }: AddNodeFormProps) {
         }
         // Smoothly fly camera to new node
         selectNode(result.node.id)
+        playIgniteSound()
         addToast(`✦ Constellation "${result.node.label}" ignited in deep space!`, 'success')
       }
       handleReset()

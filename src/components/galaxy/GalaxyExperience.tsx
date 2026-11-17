@@ -10,6 +10,7 @@ import SkillsListPanel from '@/components/panels/SkillsListPanel'
 import ToastNotification from '@/components/ui/ToastNotification'
 import SpaceControlsHUD from '@/components/galaxy/SpaceControlsHUD'
 import CreateBrainModal from '@/components/galaxy/CreateBrainModal'
+import { initBgMusic } from '@/lib/bgMusic'
 import type { GalaxyNode, GalaxyEdge, BrainUser } from '@/types'
 
 // Dynamic import with SSR off for WebGL Three.js canvas
@@ -77,6 +78,7 @@ export default function GalaxyExperience() {
 
   // 3. Initial Boot: Load Users list & Restore Last Active Brain or default to root
   useEffect(() => {
+    initBgMusic()
     const initApp = async () => {
       try {
         const res = await fetch('/api/users')

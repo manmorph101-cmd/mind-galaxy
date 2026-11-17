@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import type { GalaxyNode, GalaxyEdge, ProjectMilestone, NodeType } from '@/types'
+import { playIgniteSound, playAchievementSound, playSelectSound } from '@/lib/sound'
 import { CELESTIAL_COLORS, getCelestialColor } from '@/lib/colors'
 
 export default function NodeDetailPanel() {
@@ -98,6 +99,7 @@ export default function NodeDetailPanel() {
       })
     }
 
+    playSelectSound(800)
     const colorInfo = getCelestialColor(newColor)
     addToast(`✦ Shade updated to ${colorInfo.name} (${colorInfo.arabicName})`, 'info')
 
@@ -176,6 +178,7 @@ export default function NodeDetailPanel() {
       }
 
       setCustomLessonInput('')
+      playIgniteSound()
       addToast(
         `+${count} ${count > 1 ? 'Lessons' : 'Lesson'} logged · Neural synapses formed! 🌟`,
         'success'
@@ -234,6 +237,7 @@ export default function NodeDetailPanel() {
       }
 
       updateNode(node.id, updates)
+      playAchievementSound()
       addToast(`🔥 Day ${newStreakCount} Streak active! Keep the fire burning.`, 'streak')
 
       // Persist to backend
@@ -274,6 +278,7 @@ export default function NodeDetailPanel() {
 
     updateNode(node.id, updates)
     setNewMilestoneInput('')
+    playSelectSound(600)
     addToast('Roadmap milestone added!', 'info')
 
     try {
@@ -332,6 +337,7 @@ export default function NodeDetailPanel() {
         const data = await res.json() as { node: GalaxyNode; newEdges?: GalaxyEdge[] }
         if (data.node) addNode(data.node)
         if (data.newEdges && data.newEdges.length > 0) addEdges(data.newEdges)
+        playAchievementSound()
         addToast(`🎯 Milestone "${targetMilestone.title}" reached! Progress at ${prog}%`, 'success')
       } catch (err) {
         console.error('Failed to spawn milestone dot:', err)

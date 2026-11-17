@@ -10,17 +10,27 @@ import {
   X,
   Trash2,
   Sparkles,
+  Music,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { useGalaxyStore } from '@/store/galaxyStore'
+import { playSelectSound, getSoundVolume, setSoundVolume } from '@/lib/sound'
+import { isBgMusicEnabled, toggleBgMusic, getBgMusicVolume, setBgMusicVolume } from '@/lib/bgMusic'
 
 interface SpaceControlsHUDProps {
   onResetCamera: () => void
 }
 
 export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProps) {
-  const { nodes, edges, addToast, setNodes, setEdges, currentUser } = useGalaxyStore()
+  const { nodes, edges, addToast, setNodes, setEdges, currentUser, soundMuted, toggleSound } = useGalaxyStore()
   const [modalOpen, setModalOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+
+  // Music state: MUTED by default until user clicks
+  const [bgMusicOn, setBgMusicOn] = useState(() => (typeof window !== 'undefined' ? isBgMusicEnabled() : false))
+  const [bgVolume, setBgVolume] = useState(() => (typeof window !== 'undefined' ? Math.round(getBgMusicVolume() * 100) : 8))
+  const [volume, setVolume] = useState(() => (typeof window !== 'undefined' ? Math.round(getSoundVolume() * 100) : 12))
 
   // 1. EXPORT BACKUP JSON
   const handleExport = () => {
@@ -40,6 +50,7 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
       a.click()
       URL.revokeObjectURL(url)
       addToast('Galaxy backup downloaded successfully!', 'success')
+      playSelectSound(640)
     } catch {
       addToast('Failed to export backup.', 'info')
     }
@@ -57,7 +68,6 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
         const parsed = JSON.parse(content)
         if (parsed.nodes && Array.isArray(parsed.nodes)) {
           const userId = currentUser?.id || 'root'
-          // Sync with backend
           await fetch('/api/nodes', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -67,6 +77,7 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
           setEdges(parsed.edges || [])
           addToast('Galaxy restored successfully from backup!', 'success')
           setModalOpen(false)
+          playSelectSound(780)
         } else {
           addToast('Invalid backup file format.', 'info')
         }
@@ -97,17 +108,59 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
     }
   }
 
+  // 4. MUSIC TOGGLE
+  const handleToggleMusic = () => {
+    const next = toggleBgMusic()
+    setBgMusicOn(next)
+    if (next) {
+      addToast('🎵 Ambient Celestial Music started (Soft Volume)', 'info')
+    } else {
+      addToast('Ambient Music paused', 'info')
+    }
+  }
+
   return (
     <>
       {/* Bottom-Right Minimalist Control Pills */}
       <div className="absolute bottom-6 right-6 z-20 flex items-center gap-1.5 pointer-events-auto select-none">
         {/* Reset Camera to Origin */}
         <button
-          onClick={onResetCamera}
+          onClick={() => {
+            onResetCamera()
+            playSelectSound(440)
+          }}
           className="p-2 rounded-xl border border-white/[0.08] bg-black/80 hover:bg-white/[0.1] hover:border-white/20 text-white/60 hover:text-white transition-all cursor-pointer backdrop-blur-md"
           title="Reset Camera to Center (Space / R)"
         >
           <Compass size={14} />
+        </button>
+
+        {/* Ambient Cosmic Music Toggle (Muted by default) */}
+        <button
+          onClick={handleToggleMusic}
+          className={`p-2 rounded-xl border transition-all cursor-pointer backdrop-blur-md relative ${
+            bgMusicOn
+              ? 'border-cyan-500/40 bg-cyan-950/40 text-cyan-300 shadow-[0_0_15px_rgba(0,240,255,0.2)]'
+              : 'border-white/[0.08] bg-black/80 hover:bg-white/[0.1] hover:border-white/20 text-white/50 hover:text-white'
+          }`}
+          title={bgMusicOn ? 'Pause Ambient Celestial Music' : 'Play Ambient Music (Muted by default · Soft Volume)'}
+        >
+          <Music size={14} className={bgMusicOn ? 'text-cyan-400' : 'text-white/40'} />
+          {bgMusicOn && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+          )}
+        </button>
+
+        {/* SFX Sound Effects Toggle */}
+        <button
+          onClick={() => {
+            toggleSound()
+            if (soundMuted) playSelectSound(580)
+          }}
+          className="p-2 rounded-xl border border-white/[0.08] bg-black/80 hover:bg-white/[0.1] hover:border-white/20 text-white/60 hover:text-white transition-all cursor-pointer backdrop-blur-md"
+          title={soundMuted ? 'Unmute Sound Effects' : 'Mute Sound Effects'}
+        >
+          {soundMuted ? <VolumeX size={14} className="text-white/40" /> : <Volume2 size={14} className="text-cyan-400" />}
         </button>
 
         {/* Quick Export Backup */}
@@ -121,9 +174,12 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
 
         {/* Help & Settings */}
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => {
+            setModalOpen(true)
+            playSelectSound(480)
+          }}
           className="p-2 rounded-xl border border-white/[0.08] bg-black/80 hover:bg-white/[0.1] hover:border-white/20 text-white/60 hover:text-white transition-all cursor-pointer backdrop-blur-md"
-          title="Controls & Data Management"
+          title="Controls & Audio Settings"
         >
           <HelpCircle size={14} />
         </button>
@@ -151,7 +207,7 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
                 <div className="flex items-center gap-2">
                   <Sparkles size={14} className="text-white/70" />
                   <h3 className="text-xs font-bold uppercase tracking-widest text-white/90">
-                    System Controls & Data
+                    System Controls & Audio
                   </h3>
                 </div>
                 <button
@@ -160,6 +216,91 @@ export default function SpaceControlsHUD({ onResetCamera }: SpaceControlsHUDProp
                 >
                   <X size={16} />
                 </button>
+              </div>
+
+              {/* Audio Controls (Ambient Music & Sound FX) */}
+              <div className="flex flex-col gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                <span className="text-[10px] uppercase tracking-wider text-white/40 block font-semibold">
+                  Audio Atmosphere
+                </span>
+
+                {/* 1. Ambient Cosmic Music */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white/90 flex items-center gap-1.5">
+                      <Music size={12} className={bgMusicOn ? 'text-cyan-400' : 'text-white/40'} />
+                      <span>Ambient Sleep Music</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-cyan-400 font-bold">{bgVolume}%</span>
+                      <button
+                        type="button"
+                        onClick={handleToggleMusic}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase transition-colors cursor-pointer ${
+                          bgMusicOn
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : 'bg-white/10 text-white/40'
+                        }`}
+                      >
+                        {bgMusicOn ? 'Playing' : 'Muted'}
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="25"
+                    value={bgVolume}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      setBgVolume(val)
+                      setBgMusicVolume(val / 100)
+                    }}
+                    className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-white/10 rounded-lg appearance-none"
+                  />
+                  <div className="flex justify-between text-[9px] text-white/30">
+                    <span>Soft Whisper (Default 8%)</span>
+                    <span>Gentle (Max 25%)</span>
+                  </div>
+                </div>
+
+                {/* 2. Sound Effects (SFX) */}
+                <div className="flex flex-col gap-1.5 pt-2.5 border-t border-white/[0.06]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white/90 flex items-center gap-1.5">
+                      <Volume2 size={12} className={!soundMuted ? 'text-cyan-400' : 'text-white/40'} />
+                      <span>UI Sound Effects</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-cyan-400 font-bold">{volume}%</span>
+                      <button
+                        type="button"
+                        onClick={toggleSound}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase transition-colors cursor-pointer ${
+                          !soundMuted
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : 'bg-white/10 text-white/40'
+                        }`}
+                      >
+                        {!soundMuted ? 'Active' : 'Muted'}
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="30"
+                    value={volume}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10)
+                      setVolume(val)
+                      setSoundVolume(val / 100)
+                    }}
+                    onMouseUp={() => playSelectSound(520)}
+                    onTouchEnd={() => playSelectSound(520)}
+                    className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-white/10 rounded-lg appearance-none"
+                  />
+                </div>
               </div>
 
               {/* Keyboard Shortcuts */}

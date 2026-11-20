@@ -13,14 +13,12 @@ import {
   createCosmicDustParticles,
   ShootingStarManager,
 } from '@/lib/spaceAtmosphere'
-import { createCosmicBlackHole, type BlackHoleInstance } from '@/lib/blackHole'
 
 /* ═══════════════════════════════════════════════════════════════
-   COSMIC NEURAL SPACE — Living Orbiting Cosmos & Black Hole
+   COSMIC NEURAL SPACE — Living Orbiting Cosmos
    • Realistic 3D Orbital Mechanics (Subnodes orbit parent skills like moons)
    • Zero-Gravity Organic Floating (Weightless floating undulation)
    • Continuous Majestic Galactic Drift (Hypnotic, slow, alive)
-   • Supermassive Black Hole Phenomenon (Accretion disk & Gravitational lensing)
    • Live Dynamic Synaptic Neurons (Curves & pulses dynamically follow moving stars)
    • Multi-stop gradient light-to-dark (Volumetric celestial depth)
    ═══════════════════════════════════════════════════════════════ */
@@ -106,7 +104,6 @@ export default function CosmicSpace3D() {
   const nodesGroupRef = useRef<THREE.Group | null>(null)
   const edgesGroupRef = useRef<THREE.Group | null>(null)
   const pulsesGroupRef = useRef<THREE.Group | null>(null)
-  const blackHoleRef = useRef<BlackHoleInstance | null>(null)
 
   // Smooth Camera Animation Targets
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0))
@@ -354,15 +351,6 @@ export default function CosmicSpace3D() {
       return
     }
 
-    if (selectedNodeId === 'black-hole-singularity') {
-      const bhPos = new THREE.Vector3(340, -110, -340)
-      targetLookAt.current.copy(bhPos)
-      targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
-      isAnimatingToNode.current = true
-      isUserInteracting.current = false
-      return
-    }
-
     const targetNode = nodesRef.current.find(n => n.id === selectedNodeId)
     if (targetNode) {
       const nodePos = new THREE.Vector3(targetNode.x, targetNode.y, targetNode.z ?? 0)
@@ -416,11 +404,6 @@ export default function CosmicSpace3D() {
     // Distant Shooting Stars / Meteors ("الشهب")
     const shootingStars = new ShootingStarManager()
     scene.add(shootingStars.group)
-
-    // ── 🌀 SUPERMASSIVE BLACK HOLE PHENOMENON (الثقب الأسود) ──
-    const blackHole = createCosmicBlackHole(new THREE.Vector3(340, -110, -340))
-    blackHoleRef.current = blackHole
-    scene.add(blackHole.group)
 
     // ── CAMERA (Restore saved position if available) ──
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 5000)
@@ -604,15 +587,6 @@ export default function CosmicSpace3D() {
         return
       }
 
-      if (blackHoleRef.current) {
-        const bhHits = raycaster.intersectObjects([blackHoleRef.current.group], true)
-        if (bhHits.length) {
-          document.body.style.cursor = 'pointer'
-          setHoveredId('black-hole-singularity')
-          return
-        }
-      }
-
       document.body.style.cursor = 'default'
       setHoveredId(null)
     }
@@ -635,23 +609,6 @@ export default function CosmicSpace3D() {
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
 
-      // 1. Check Black Hole click
-      if (blackHoleRef.current) {
-        raycaster.setFromCamera(mouse, camera)
-        const bhHits = raycaster.intersectObjects([blackHoleRef.current.group], true)
-        if (bhHits.length) {
-          const bhPos = blackHoleRef.current.position
-          targetLookAt.current.copy(bhPos)
-          targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
-          isAnimatingToNode.current = true
-          isUserInteracting.current = false
-          playSelectSound(220)
-          selectNode('black-hole-singularity')
-          return
-        }
-      }
-
-      // 2. Check Node click
       const id = findClickedNodeId()
       if (id) {
         selectNode(id)
@@ -672,17 +629,6 @@ export default function CosmicSpace3D() {
       } catch {}
     }
 
-    const onFlyToBlackHoleEvent = () => {
-      registerUserActivity()
-      const bhPos = new THREE.Vector3(340, -110, -340)
-      targetLookAt.current.copy(bhPos)
-      targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
-      isAnimatingToNode.current = true
-      isUserInteracting.current = false
-      playSelectSound(220)
-      selectNode('black-hole-singularity')
-    }
-
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerdown', registerUserActivity)
     window.addEventListener('wheel', registerUserActivity, { passive: true })
@@ -691,7 +637,6 @@ export default function CosmicSpace3D() {
     window.addEventListener('touchmove', registerUserActivity, { passive: true })
     window.addEventListener('click', onClick)
     window.addEventListener('mindgalaxy:resetCamera', onResetCamEvent)
-    window.addEventListener('mindgalaxy:flyToBlackHole', onFlyToBlackHoleEvent)
 
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight
@@ -727,11 +672,6 @@ export default function CosmicSpace3D() {
 
       // Distant shooting stars ("الشهب")
       shootingStars.update(dt, camera)
-
-      // ── 🌀 BLACK HOLE RELATIVISTIC SIMULATION ──
-      if (blackHoleRef.current) {
-        blackHoleRef.current.update(t, dt)
-      }
 
       // Origin breathing excitation
       const originBreathe = 1 + 0.03 * Math.sin(t * 0.5)
@@ -902,7 +842,7 @@ export default function CosmicSpace3D() {
 
       const candidates: CandidateLabel[] = []
 
-      // 1. Process Star Nodes
+      // Process Star Nodes
       nodesRef.current.forEach(node => {
         const livePos = livePositions.get(node.id)
         if (!livePos) return
@@ -941,34 +881,6 @@ export default function CosmicSpace3D() {
           priority,
         })
       })
-
-      // 2. Process Supermassive Black Hole label
-      if (blackHoleRef.current) {
-        const bhPos = blackHoleRef.current.position
-        tmpV.copy(bhPos)
-        tmpV.project(camera)
-        if (tmpV.z < 1 && tmpV.z > -1 && Math.abs(tmpV.x) < 1.15 && Math.abs(tmpV.y) < 1.15) {
-          const sx = ((tmpV.x + 1) * window.innerWidth) / 2
-          const sy = ((-tmpV.y + 1) * window.innerHeight) / 2
-          const dist = camera.position.distanceTo(bhPos)
-          if (dist < 1600) {
-            candidates.push({
-              id: 'black-hole-singularity',
-              label: '✦ SINGULARITY (الثقب الأسود)',
-              color: '#ff9900',
-              type: 'goal',
-              isSkill: true,
-              x: sx,
-              y: sy,
-              visible: true,
-              isSelected: selId === 'black-hole-singularity',
-              isHovered: hovId === 'black-hole-singularity',
-              distance: dist,
-              priority: 70,
-            })
-          }
-        }
-      }
 
       // Sort: highest priority items claim their anchor position first
       candidates.sort((a, b) => b.priority - a.priority)
@@ -1080,15 +992,11 @@ export default function CosmicSpace3D() {
       window.removeEventListener('touchmove', registerUserActivity)
       window.removeEventListener('click', onClick)
       window.removeEventListener('mindgalaxy:resetCamera', onResetCamEvent)
-      window.removeEventListener('mindgalaxy:flyToBlackHole', onFlyToBlackHoleEvent)
 
       shootingStars.dispose()
       scene.remove(nebulae)
       scene.remove(dustPoints)
       scene.remove(shootingStars.group)
-      if (blackHoleRef.current) {
-        scene.remove(blackHoleRef.current.group)
-      }
 
       renderer.dispose()
       if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
@@ -1117,7 +1025,6 @@ export default function CosmicSpace3D() {
         {labels.map(lbl => {
           if (!lbl.visible || lbl.distance > 850) return null
           const isHovered = lbl.id === hoveredId
-          const isBlackHole = lbl.id === 'black-hole-singularity'
           const opacity = Math.max(0.28, Math.min(1, 1 - (lbl.distance - 140) / 710))
 
           return (
@@ -1128,36 +1035,25 @@ export default function CosmicSpace3D() {
                 left: `${lbl.x}px`,
                 top: `${lbl.y}px`,
                 opacity: isHovered || lbl.isSelected ? 1 : opacity,
-                zIndex: isHovered || lbl.isSelected ? 30 : isBlackHole ? 25 : lbl.isSkill ? 20 : 10,
+                zIndex: isHovered || lbl.isSelected ? 30 : lbl.isSkill ? 20 : 10,
               }}
             >
               <div
                 className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-all ${
-                  isBlackHole
-                    ? 'bg-black/90 border-amber-500/50 shadow-[0_0_14px_rgba(255,160,0,0.35)]'
-                    : lbl.isSelected
+                  lbl.isSelected
                     ? 'bg-white/[0.18] border-white/80 shadow-lg scale-105'
                     : isHovered
                     ? 'bg-black/90 border-white/60 shadow-md scale-105'
                     : 'bg-black/80 border-white/[0.08]'
                 }`}
-                style={(lbl.isSelected || isHovered) && !isBlackHole ? { boxShadow: `0 0 16px ${lbl.color}88` } : {}}
+                style={(lbl.isSelected || isHovered) ? { boxShadow: `0 0 16px ${lbl.color}88` } : {}}
               >
                 <div
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${isBlackHole ? 'animate-pulse' : ''}`}
-                  style={{
-                    background: isBlackHole ? '#ffaa00' : lbl.color,
-                    boxShadow: isBlackHole ? '0 0 8px #ffaa00' : `0 0 8px ${lbl.color}`,
-                  }}
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: lbl.color, boxShadow: `0 0 8px ${lbl.color}` }}
                 />
                 <span className={`text-[10px] font-semibold tracking-wide whitespace-nowrap ${
-                  isBlackHole
-                    ? 'text-amber-300 font-mono'
-                    : lbl.isSelected || isHovered
-                    ? 'text-white'
-                    : lbl.isSkill
-                    ? 'text-white/90'
-                    : 'text-white/60'
+                  lbl.isSelected || isHovered ? 'text-white' : lbl.isSkill ? 'text-white/90' : 'text-white/60'
                 }`}>
                   {lbl.label}
                 </span>

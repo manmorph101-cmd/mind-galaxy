@@ -14,7 +14,6 @@ import {
   Volume2,
   VolumeX,
   LogOut,
-  Orbit,
 } from 'lucide-react'
 import { useGalaxyStore } from '@/store/galaxyStore'
 import { playSelectSound, getSoundVolume, setSoundVolume } from '@/lib/sound'
@@ -136,19 +135,6 @@ export default function SpaceControlsHUD({ onResetCamera, onLogout }: SpaceContr
           title="Reset Camera to Center (Space / R)"
         >
           <Compass size={14} />
-        </button>
-
-        {/* Fly to Supermassive Black Hole (الثقب الأسود) */}
-        <button
-          onClick={() => {
-            playSelectSound(220)
-            window.dispatchEvent(new CustomEvent('mindgalaxy:flyToBlackHole'))
-            addToast('✦ Approaching the Singularity (الثقب الأسود)', 'info')
-          }}
-          className="p-2 rounded-xl border border-amber-500/20 bg-black/80 hover:bg-amber-500/10 hover:border-amber-500/40 text-amber-400 hover:text-amber-300 transition-all cursor-pointer backdrop-blur-md relative"
-          title="Fly to the Singularity / Black Hole (الثقب الأسود)"
-        >
-          <Orbit size={14} className="text-amber-400" />
         </button>
 
         {/* Ambient Cosmic Music Toggle (Muted by default) */}

@@ -37,7 +37,19 @@ export function getInitialData(): GalaxyStoreData {
   }
 }
 
-function sanitizeStoreData(parsed: any): GalaxyStoreData {
+function sanitizeStoreData(rawInput: any): GalaxyStoreData {
+  let parsed = rawInput
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {}
+  }
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {}
+  }
+
   const users: BrainUser[] = Array.isArray(parsed?.users) && parsed.users.length > 0
     ? parsed.users
     : [DEFAULT_ROOT_USER]
@@ -75,7 +87,7 @@ function readBundledStoreData(): GalaxyStoreData {
   return getInitialData()
 }
 
-// Optional PostgreSQL client supporting Vercel Postgres, Neon, Supabase, Railway
+// Optional PostgreSQL client supporting Supabase, Neon, Vercel Postgres, Railway
 let sqlClient: ReturnType<typeof postgres> | null = null
 let dbInitialized = false
 
@@ -90,6 +102,7 @@ export function isCloudDatabaseConfigured(): boolean {
     dbUrl &&
     !dbUrl.includes('[ref]') &&
     !dbUrl.includes('[password]') &&
+    !dbUrl.includes('[YOUR-DATABASE-PASSWORD]') &&
     (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))
   )
 }
@@ -105,6 +118,7 @@ function getDatabaseClient() {
     !dbUrl ||
     dbUrl.includes('[ref]') ||
     dbUrl.includes('[password]') ||
+    dbUrl.includes('[YOUR-DATABASE-PASSWORD]') ||
     (!dbUrl.startsWith('postgres://') && !dbUrl.startsWith('postgresql://'))
   ) {
     return null
@@ -114,8 +128,8 @@ function getDatabaseClient() {
     try {
       sqlClient = postgres(dbUrl, {
         max: 1,
-        idle_timeout: 10,
-        connect_timeout: 8,
+        idle_timeout: 15,
+        connect_timeout: 10,
         ssl: 'require',
       })
     } catch (e) {
@@ -159,7 +173,7 @@ export async function readStoreData(): Promise<GalaxyStoreData> {
       const initial = readBundledStoreData()
       await sql`
         INSERT INTO galaxy_global_store (id, data, updated_at)
-        VALUES ('main', ${JSON.stringify(initial)}::jsonb, NOW())
+        VALUES ('main', ${sql.json(initial)}, NOW())
         ON CONFLICT (id) DO NOTHING
       `
       inMemoryStore = initial
@@ -211,10 +225,9 @@ export async function writeStoreData(data: GalaxyStoreData): Promise<void> {
   if (sql) {
     try {
       await ensureDbTable(sql)
-      const jsonData = JSON.stringify(data)
       await sql`
         INSERT INTO galaxy_global_store (id, data, updated_at)
-        VALUES ('main', ${jsonData}::jsonb, NOW())
+        VALUES ('main', ${sql.json(data)}, NOW())
         ON CONFLICT (id) DO UPDATE
         SET data = EXCLUDED.data, updated_at = NOW()
       `

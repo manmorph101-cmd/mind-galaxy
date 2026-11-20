@@ -13,23 +13,32 @@ import {
   createCosmicDustParticles,
   ShootingStarManager,
 } from '@/lib/spaceAtmosphere'
+import { createCosmicBlackHole, type BlackHoleInstance } from '@/lib/blackHole'
 
 /* ═══════════════════════════════════════════════════════════════
-   COSMIC NEURAL SPACE — Smooth Cinematic Camera & Persistent 3D
-   • Stable Three.js lifecycle (Zero camera reset on node add)
-   • Smooth cinematic fly-to transition when selecting nodes
-   • Camera position & target persisted in localStorage
+   COSMIC NEURAL SPACE — Living Orbiting Cosmos & Black Hole
+   • Realistic 3D Orbital Mechanics (Subnodes orbit parent skills like moons)
+   • Zero-Gravity Organic Floating (Weightless floating undulation)
+   • Continuous Majestic Galactic Drift (Hypnotic, slow, alive)
+   • Supermassive Black Hole Phenomenon (Accretion disk & Gravitational lensing)
+   • Live Dynamic Synaptic Neurons (Curves & pulses dynamically follow moving stars)
    • Multi-stop gradient light-to-dark (Volumetric celestial depth)
-   • Pure black void (#000000) & pure circular neon dots
    ═══════════════════════════════════════════════════════════════ */
 
 function hexToThreeColor(hex: string) { return new THREE.Color(hex) }
+
+function getClusterSeed(id: string): number {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (Math.imul(31, hash) + id.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
 
 // Cache generated celestial textures for peak rendering performance
 const glowTextureCache = new Map<string, THREE.Texture>()
 
 // High-definition 256x256 multi-stop celestial glow texture:
-// Luminous radiant core to deep cosmic rim into void
 function getCelestialGlowTexture(colorInput: string | THREE.Color): THREE.Texture {
   const hexStr = typeof colorInput === 'string'
     ? colorInput
@@ -97,6 +106,7 @@ export default function CosmicSpace3D() {
   const nodesGroupRef = useRef<THREE.Group | null>(null)
   const edgesGroupRef = useRef<THREE.Group | null>(null)
   const pulsesGroupRef = useRef<THREE.Group | null>(null)
+  const blackHoleRef = useRef<BlackHoleInstance | null>(null)
 
   // Smooth Camera Animation Targets
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0))
@@ -104,9 +114,7 @@ export default function CosmicSpace3D() {
   const isUserInteracting = useRef(false)
   const isAnimatingToNode = useRef(false)
 
-  // 6-Second Idle Auto-Rotation State
   const lastUserActivity = useRef(typeof performance !== 'undefined' ? performance.now() : 0)
-  const autoRotateBlend = useRef(0)
 
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const hoveredIdRef = useRef<string | null>(null)
@@ -116,11 +124,11 @@ export default function CosmicSpace3D() {
     id: string
     label: string
     color: string
+    type: NodeType
+    isSkill: boolean
     x: number
     y: number
     visible: boolean
-    type: NodeType
-    isSkill: boolean
     isSelected: boolean
     isHovered: boolean
     distance: number
@@ -146,7 +154,7 @@ export default function CosmicSpace3D() {
     const posMap = new Map<string, THREE.Vector3>()
     posMap.set('origin', new THREE.Vector3(0, 0, 0))
 
-    // ── CIRCULAR DOTS (Pure Radiant Light Points with Light-to-Dark Depth) ──
+    // ── CIRCULAR DOTS WITH ORBITAL MECHANICS METADATA ──
     curNodes.forEach((node) => {
       const pos = new THREE.Vector3(node.x, node.y, node.z ?? 0)
       posMap.set(node.id, pos)
@@ -155,24 +163,60 @@ export default function CosmicSpace3D() {
       const midCol = new THREE.Color(celestial.hex)
       const group = new THREE.Group()
       group.position.copy(pos)
-      group.userData = { nodeId: node.id, nodeType: node.type }
 
       // True definition: node is primary skill if it has no parent or parent is 'origin'
       const isSkill = !node.parentId || node.parentId === 'origin'
-      // Refined small dots: primary soma is 4.2, child synapse is 1.35
       const baseR = isSkill ? 4.2 : 1.35
+      const seed = getClusterSeed(node.id)
+
+      if (isSkill) {
+        group.userData = {
+          nodeId: node.id,
+          nodeType: node.type,
+          isSkill: true,
+          basePos: { x: node.x, y: node.y, z: node.z ?? 0, seed },
+        }
+      } else {
+        const parent = curNodes.find((n) => n.id === node.parentId || n.id === node.skillId)
+        const pX = parent ? parent.x : 0
+        const pY = parent ? parent.y : 0
+        const pZ = parent ? (parent.z ?? 0) : 0
+
+        const dx = node.x - pX
+        const dy = node.y - pY
+        const dz = (node.z ?? 0) - pZ
+        let r = Math.sqrt(dx * dx + dz * dz)
+        if (r < 18) r = 26.0 + (seed % 32)
+        const initialAngle = Math.atan2(dz, dx)
+        const dir = seed % 2 === 0 ? 1 : -1
+        const omega = (0.24 / Math.sqrt(Math.max(22, r) / 32)) * dir
+
+        group.userData = {
+          nodeId: node.id,
+          nodeType: node.type,
+          isSkill: false,
+          orbit: {
+            parentId: parent ? parent.id : (node.parentId || 'origin'),
+            r,
+            initialAngle,
+            omega,
+            dy,
+            seed,
+          },
+        }
+      }
 
       if (!excitations.current.has(node.id)) {
-        excitations.current.set(node.id, 0.8) // gentle initial spawn flash
+        excitations.current.set(node.id, 0.8) // gentle spawn flash
       }
 
       // ── VOLUMETRIC CELESTIAL SPHERE (Light Core to Deep Rim) ──
-      // Layer 1 (Innermost core): Dazzling white-hot photon singularity
+      // Layer 1: White-hot photon core
       const innerGeo = new THREE.SphereGeometry(baseR * 0.42, 16, 16)
       const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
       group.add(new THREE.Mesh(innerGeo, innerMat))
 
-      // Layer 2 (Mantle): Luminous radiant light tone
+      // Layer 2: Radiant light tone
       const mantleGeo = new THREE.SphereGeometry(baseR * 0.76, 20, 20)
       const mantleMat = new THREE.MeshBasicMaterial({
         color: lightCol,
@@ -181,7 +225,7 @@ export default function CosmicSpace3D() {
       })
       group.add(new THREE.Mesh(mantleGeo, mantleMat))
 
-      // Layer 3 (Outer surface): Vibrant pure chromatic sphere
+      // Layer 3: Vibrant pure chromatic sphere
       const dotGeo = new THREE.SphereGeometry(baseR, 24, 24)
       const dotMat = new THREE.MeshBasicMaterial({
         color: midCol,
@@ -192,7 +236,7 @@ export default function CosmicSpace3D() {
       dotMesh.name = 'dotCore'
       group.add(dotMesh)
 
-      // Circular Celestial Glow (Multi-stop gradient sprite)
+      // Circular Celestial Glow
       const tex = getCelestialGlowTexture(node.color)
       const spriteMat = new THREE.SpriteMaterial({
         map: tex,
@@ -202,21 +246,20 @@ export default function CosmicSpace3D() {
         depthWrite: false,
       })
       const glowSprite = new THREE.Sprite(spriteMat)
-      // Refined glow scale: child subnodes stay crisp and never bloom into a blinding blob
       const glowScale = isSkill ? baseR * 6.6 : baseR * 3.2
       glowSprite.scale.set(glowScale, glowScale, 1)
       glowSprite.name = 'glowSprite'
       glowSprite.userData = { baseScale: glowScale }
       group.add(glowSprite)
 
-      // Point light for dynamic illumination — ONLY for primary skill nucleus to avoid saturation
+      // Point light for dynamic illumination on primary nucleus
       if (isSkill) {
         const pLight = new THREE.PointLight(midCol.getHex(), 1.25, 115, 2)
         pLight.name = 'nodeLight'
         group.add(pLight)
       }
 
-      // Cellular Membrane / Aura enveloping the neural dendrites (Subtle ethereal glow)
+      // Cellular Membrane / Aura enveloping the neural dendrites
       if (isSkill) {
         const clusterTaskCount = curNodes.filter(n => n.parentId === node.id || n.skillId === node.id).length
         const haloScale = 28 + Math.min(26, clusterTaskCount * 1.0)
@@ -238,7 +281,7 @@ export default function CosmicSpace3D() {
       nodesGroup.add(group)
     })
 
-    // ── EDGES: SYNAPTIC LINES WITH SMART TRIANGULATION ──
+    // ── EDGES: DYNAMIC SYNAPTIC LINES WITH SMART TRIANGULATION ──
     curEdges.forEach((edge, i) => {
       const from = posMap.get(edge.fromId)
       const to = posMap.get(edge.toId)
@@ -258,7 +301,7 @@ export default function CosmicSpace3D() {
       )
       const ctrl = mid.clone().add(offset)
       const curve = new THREE.QuadraticBezierCurve3(from, ctrl, to)
-      const pts = curve.getPoints(36)
+      const pts = curve.getPoints(24)
 
       // Sleek laser line
       const lineGeo = new THREE.BufferGeometry().setFromPoints(pts)
@@ -268,7 +311,7 @@ export default function CosmicSpace3D() {
         opacity: 0.40,
         blending: THREE.AdditiveBlending,
       })
-      edgesGroup.add(new THREE.Line(lineGeo, lineMat))
+      const lineMesh = new THREE.Line(lineGeo, lineMat)
 
       // Synaptic light impulse travelling between connected dots
       const pulseGeo = new THREE.SphereGeometry(1.4, 10, 10)
@@ -284,6 +327,14 @@ export default function CosmicSpace3D() {
 
       pulse.userData = { curve, t: edge.offset ?? Math.random(), speed: 0.0035 + (i % 3) * 0.001 }
       pulsesGroup.add(pulse)
+
+      lineMesh.userData = {
+        fromId: edge.fromId,
+        toId: edge.toId,
+        offsetVec: offset,
+        pulseRef: pulse,
+      }
+      edgesGroup.add(lineMesh)
     })
   }, [])
 
@@ -295,7 +346,6 @@ export default function CosmicSpace3D() {
     if (!camera) return
 
     if (!selectedNodeId) {
-      // Return gently to orbit view
       targetLookAt.current.set(0, 0, 0)
       const viewDir = camera.position.clone().normalize()
       if (viewDir.lengthSq() < 0.01) viewDir.set(0, 0.2, 1).normalize()
@@ -304,18 +354,23 @@ export default function CosmicSpace3D() {
       return
     }
 
+    if (selectedNodeId === 'black-hole-singularity') {
+      const bhPos = new THREE.Vector3(340, -110, -340)
+      targetLookAt.current.copy(bhPos)
+      targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
+      isAnimatingToNode.current = true
+      isUserInteracting.current = false
+      return
+    }
+
     const targetNode = nodesRef.current.find(n => n.id === selectedNodeId)
     if (targetNode) {
       const nodePos = new THREE.Vector3(targetNode.x, targetNode.y, targetNode.z ?? 0)
-
-      // Set target look at to node
       targetLookAt.current.copy(nodePos)
 
-      // Compute smooth fly-in camera position maintaining current viewing direction
       const viewDir = camera.position.clone().sub(nodePos).normalize()
       if (viewDir.lengthSq() < 0.01) viewDir.set(0, 0.3, 1).normalize()
 
-      // Comfortable viewing distance tailored to the cluster radius
       const clusterCount = nodesRef.current.filter(n => n.parentId === targetNode.id || n.skillId === targetNode.id).length
       const viewDistance = targetNode.type !== 'task'
         ? (115 + Math.min(65, clusterCount * 2.2))
@@ -328,7 +383,7 @@ export default function CosmicSpace3D() {
   }, [selectedNodeId])
 
   // ═════════════════════════════════════════════════════════════
-  // 3. REBUILD SCENE WHEN NODES/EDGES CHANGE (Camera is preserved!)
+  // 3. REBUILD SCENE WHEN NODES/EDGES CHANGE
   // ═════════════════════════════════════════════════════════════
   useEffect(() => {
     rebuildScene()
@@ -346,21 +401,26 @@ export default function CosmicSpace3D() {
     sceneRef.current = scene
     scene.background = new THREE.Color(0x000000)
 
-    // Circadian Cosmic Atmosphere & Time-of-Day Shift
+    // Circadian Cosmic Atmosphere
     const circadian = getCircadianCosmicTheme()
     scene.fog = new THREE.FogExp2(circadian.horizonColor.getHex(), 0.00045)
 
-    // Ethereal Deep-Space Nebulae (Soft, non-intrusive breathing horizon)
+    // Ethereal Deep-Space Nebulae
     const nebulae = createDeepSpaceNebulae(circadian.nebulaTint)
     scene.add(nebulae)
 
-    // Floating Stardust Particles (Weightless Brownian motes with parallax depth)
+    // Floating Stardust Particles
     const { points: dustPoints, update: updateDust } = createCosmicDustParticles(circadian.dustColor)
     scene.add(dustPoints)
 
-    // Distant Shooting Stars / Meteors passing diagonally across active camera view ("الشهب")
+    // Distant Shooting Stars / Meteors ("الشهب")
     const shootingStars = new ShootingStarManager()
     scene.add(shootingStars.group)
+
+    // ── 🌀 SUPERMASSIVE BLACK HOLE PHENOMENON (الثقب الأسود) ──
+    const blackHole = createCosmicBlackHole(new THREE.Vector3(340, -110, -340))
+    blackHoleRef.current = blackHole
+    scene.add(blackHole.group)
 
     // ── CAMERA (Restore saved position if available) ──
     const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.5, 5000)
@@ -399,73 +459,66 @@ export default function CosmicSpace3D() {
     const controls = new OrbitControls(camera, renderer.domElement)
     controlsRef.current = controls
     controls.enableDamping = true
-    controls.dampingFactor = 0.045
-    controls.rotateSpeed = 0.6
-    controls.zoomSpeed = 0.95
-    controls.minDistance = 25
+    controls.dampingFactor = 0.05
+    controls.rotateSpeed = 0.65
+    controls.zoomSpeed = 0.8
+    controls.panSpeed = 0.6
+    controls.minDistance = 35
     controls.maxDistance = 1400
-    controls.autoRotate = false
-    controls.enablePan = true
 
     if (savedCam) {
       controls.target.set(savedCam.tx, savedCam.ty, savedCam.tz)
+    } else {
+      controls.target.set(0, 0, 0)
     }
 
-    // Detect user manual interaction so it doesn't fight smooth lerp or auto-rotation
     controls.addEventListener('start', () => {
       isUserInteracting.current = true
       isAnimatingToNode.current = false
       lastUserActivity.current = performance.now()
     })
 
-    controls.addEventListener('change', () => {
-      if (isUserInteracting.current) {
-        lastUserActivity.current = performance.now()
-      }
-    })
-
     controls.addEventListener('end', () => {
       isUserInteracting.current = false
       lastUserActivity.current = performance.now()
-      targetLookAt.current.copy(controls.target)
-      targetCamPos.current.copy(camera.position)
-
-      // Save camera coordinates to localStorage so user viewpoint persists
       try {
-        localStorage.setItem('mindgalaxy_cam_v2', JSON.stringify({
-          px: camera.position.x, py: camera.position.y, pz: camera.position.z,
-          tx: controls.target.x, ty: controls.target.y, tz: controls.target.z,
-        }))
+        localStorage.setItem(
+          'mindgalaxy_cam_v2',
+          JSON.stringify({
+            px: camera.position.x,
+            py: camera.position.y,
+            pz: camera.position.z,
+            tx: controls.target.x,
+            ty: controls.target.y,
+            tz: controls.target.z,
+          })
+        )
       } catch {}
     })
 
-    // ── LIGHTS ──
-    scene.add(new THREE.AmbientLight(0x222222, 0.8))
-    const coreLight = new THREE.PointLight(0xffffff, 3.0, 800, 1.4)
-    coreLight.position.set(0, 0, 0)
-    scene.add(coreLight)
-
-    // ── DEEP SPACE STARFIELD ──
-    const STAR_COUNT = 6000
+    // ── DEEP COSMIC STARFIELD ──
+    const STAR_COUNT = 3800
     const starGeo = new THREE.BufferGeometry()
     const starPos = new Float32Array(STAR_COUNT * 3)
     const starSizes = new Float32Array(STAR_COUNT)
+
     for (let i = 0; i < STAR_COUNT; i++) {
-      const r = 350 + Math.random() * 2200
+      const r = 450 + Math.random() * 2200
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(Math.random() * 2 - 1)
-      starPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta)
+      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
       starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
       starPos[i * 3 + 2] = r * Math.cos(phi)
-      starSizes[i] = Math.random() * 1.8 + 0.4
+      starSizes[i] = 1.0 + Math.random() * 2.8
     }
+
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3))
     starGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1))
 
     const starMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime: { value: 0 },
-        uColor: { value: new THREE.Color(0xffffff) },
+        uColor: { value: new THREE.Color(0xdbeafe) },
       },
       vertexShader: `
         attribute float size;
@@ -541,16 +594,27 @@ export default function CosmicSpace3D() {
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
       raycaster.setFromCamera(mouse, camera)
+
       const hits = raycaster.intersectObjects(nodesGroup.children, true)
       if (hits.length) {
         document.body.style.cursor = 'pointer'
         let obj = hits[0].object
         while (obj.parent && obj.parent !== nodesGroup) obj = obj.parent
         setHoveredId(obj.userData?.nodeId ?? null)
-      } else {
-        document.body.style.cursor = 'default'
-        setHoveredId(null)
+        return
       }
+
+      if (blackHoleRef.current) {
+        const bhHits = raycaster.intersectObjects([blackHoleRef.current.group], true)
+        if (bhHits.length) {
+          document.body.style.cursor = 'pointer'
+          setHoveredId('black-hole-singularity')
+          return
+        }
+      }
+
+      document.body.style.cursor = 'default'
+      setHoveredId(null)
     }
 
     const findClickedNodeId = (): string | null => {
@@ -570,6 +634,24 @@ export default function CosmicSpace3D() {
       registerUserActivity()
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
+
+      // 1. Check Black Hole click
+      if (blackHoleRef.current) {
+        raycaster.setFromCamera(mouse, camera)
+        const bhHits = raycaster.intersectObjects([blackHoleRef.current.group], true)
+        if (bhHits.length) {
+          const bhPos = blackHoleRef.current.position
+          targetLookAt.current.copy(bhPos)
+          targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
+          isAnimatingToNode.current = true
+          isUserInteracting.current = false
+          playSelectSound(220)
+          selectNode('black-hole-singularity')
+          return
+        }
+      }
+
+      // 2. Check Node click
       const id = findClickedNodeId()
       if (id) {
         selectNode(id)
@@ -590,6 +672,17 @@ export default function CosmicSpace3D() {
       } catch {}
     }
 
+    const onFlyToBlackHoleEvent = () => {
+      registerUserActivity()
+      const bhPos = new THREE.Vector3(340, -110, -340)
+      targetLookAt.current.copy(bhPos)
+      targetCamPos.current.set(bhPos.x + 80, bhPos.y + 40, bhPos.z + 105)
+      isAnimatingToNode.current = true
+      isUserInteracting.current = false
+      playSelectSound(220)
+      selectNode('black-hole-singularity')
+    }
+
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerdown', registerUserActivity)
     window.addEventListener('wheel', registerUserActivity, { passive: true })
@@ -598,6 +691,7 @@ export default function CosmicSpace3D() {
     window.addEventListener('touchmove', registerUserActivity, { passive: true })
     window.addEventListener('click', onClick)
     window.addEventListener('mindgalaxy:resetCamera', onResetCamEvent)
+    window.addEventListener('mindgalaxy:flyToBlackHole', onFlyToBlackHoleEvent)
 
     const onResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight
@@ -607,7 +701,7 @@ export default function CosmicSpace3D() {
     window.addEventListener('resize', onResize)
 
     // ══════════════════════════════════════
-    //  ANIMATION LOOP
+    //  ANIMATION LOOP (ORBITING COSMOS)
     // ══════════════════════════════════════
     const startTime = performance.now() * 0.001
     let lastTime = startTime
@@ -624,31 +718,96 @@ export default function CosmicSpace3D() {
       starMat.uniforms.uTime.value = t
       stars.rotation.y = t * 0.0015
 
-      // Nebulae ultra-slow cosmic breathing rotation
+      // Nebulae slow cosmic breathing
       nebulae.rotation.y = t * 0.00012
       nebulae.rotation.z = t * 0.00007
 
-      // Floating weightless stardust Brownian drift
+      // Floating stardust drift
       updateDust(t)
 
-      // Distant shooting stars streaking across camera view ("الشهب")
+      // Distant shooting stars ("الشهب")
       shootingStars.update(dt, camera)
 
-      // Origin breathing excitation (slow 12s cycle, 3% amplitude)
+      // ── 🌀 BLACK HOLE RELATIVISTIC SIMULATION ──
+      if (blackHoleRef.current) {
+        blackHoleRef.current.update(t, dt)
+      }
+
+      // Origin breathing excitation
       const originBreathe = 1 + 0.03 * Math.sin(t * 0.5)
       originGlow.scale.set(28 * originBreathe, 28 * originBreathe, 1)
+
+      // ═════════════════════════════════════════════════════════════
+      // 🪐 ORBITAL MECHANICS & ZERO-GRAVITY FLOATING DYNAMICS (كايطوف)
+      // ═════════════════════════════════════════════════════════════
+      const livePositions = new Map<string, THREE.Vector3>()
+      livePositions.set('origin', new THREE.Vector3(0, 0, 0))
+
+      // Pass A: Update Primary Skills with zero-g organic float
+      nodesGroup.children.forEach(child => {
+        const group = child as THREE.Group
+        const id = group.userData.nodeId
+        if (!id) return
+        const base = group.userData.basePos
+        if (group.userData.isSkill && base) {
+          const floatX = Math.cos(t * 0.35 + base.seed) * 2.8
+          const floatY = Math.sin(t * 0.45 + base.seed * 1.3) * 3.5
+          const floatZ = Math.sin(t * 0.38 + base.seed * 0.7) * 2.8
+          group.position.set(base.x + floatX, base.y + floatY, base.z + floatZ)
+          livePositions.set(id, group.position)
+        }
+      })
+
+      // Pass B: Update Subnodes (orbiting around their live parent like moons)
+      nodesGroup.children.forEach(child => {
+        const group = child as THREE.Group
+        const id = group.userData.nodeId
+        if (!id) return
+        const orbit = group.userData.orbit
+        if (orbit) {
+          const parentPos = livePositions.get(orbit.parentId) || new THREE.Vector3(0, 0, 0)
+          const angle = orbit.initialAngle + t * orbit.omega
+          const curX = parentPos.x + orbit.r * Math.cos(angle)
+          const curZ = parentPos.z + orbit.r * Math.sin(angle)
+          const curY = parentPos.y + orbit.dy + Math.sin(angle * 2 + orbit.seed) * 2.8
+          group.position.set(curX, curY, curZ)
+          livePositions.set(id, group.position)
+        }
+      })
+
+      // Pass C: Update dynamic synaptic edges & curves
+      edgesGroup.children.forEach(child => {
+        const lineMesh = child as THREE.Line
+        const { fromId, toId, offsetVec, pulseRef } = lineMesh.userData || {}
+        if (!fromId || !toId) return
+        const fromPos = livePositions.get(fromId) || new THREE.Vector3(0, 0, 0)
+        const toPos = livePositions.get(toId)
+        if (fromPos && toPos) {
+          const mid = fromPos.clone().add(toPos).multiplyScalar(0.5).add(offsetVec)
+          const curve = new THREE.QuadraticBezierCurve3(fromPos, mid, toPos)
+          const pts = curve.getPoints(24)
+          lineMesh.geometry.setFromPoints(pts)
+          lineMesh.geometry.attributes.position.needsUpdate = true
+          if (pulseRef) {
+            pulseRef.userData.curve = curve
+          }
+        }
+      })
 
       // Animate synaptic impulses traveling across lines & triangles
       pulsesGroup.children.forEach(child => {
         const mesh = child as THREE.Mesh
         const { curve, speed } = mesh.userData
-        mesh.userData.t = (mesh.userData.t + speed) % 1
-        const pt = curve.getPoint(mesh.userData.t)
-        mesh.position.copy(pt)
+        if (curve) {
+          mesh.userData.t = (mesh.userData.t + speed) % 1
+          const pt = curve.getPoint(mesh.userData.t)
+          mesh.position.copy(pt)
+        }
       })
 
       // Light excitation animation
-      nodesGroup.children.forEach(group => {
+      nodesGroup.children.forEach(child => {
+        const group = child as THREE.Group
         const id = group.userData.nodeId
         const nodeType = group.userData.nodeType
         if (!id) return
@@ -664,9 +823,7 @@ export default function CosmicSpace3D() {
           excitations.current.set(id, exc)
         }
 
-        // Habit dots have a subtle discipline heartbeat pulse
         const habitPulse = nodeType === 'habit' ? 0.08 * Math.sin(t * 3.2) : 0
-
         const isSel = id === selectedRef.current
         const excitationBoost = 1 + exc * 0.8 + (isSel ? 0.25 : 0) + habitPulse
 
@@ -682,7 +839,6 @@ export default function CosmicSpace3D() {
           pLight.intensity = (isSel ? 2.0 : 1.0) * excitationBoost
         }
 
-        // Cellular Membrane Halo gentle breathing
         const somaHalo = group.getObjectByName('somaHalo') as THREE.Sprite
         if (somaHalo) {
           const baseHalo = somaHalo.userData.baseScale || 32
@@ -696,7 +852,14 @@ export default function CosmicSpace3D() {
         controls.target.lerp(targetLookAt.current, 0.065)
         camera.position.lerp(targetCamPos.current, 0.055)
 
-        // Stop animating when arrived close enough
+        // If target node is in orbit, smoothly track its live position!
+        if (selectedRef.current) {
+          const liveTarget = livePositions.get(selectedRef.current)
+          if (liveTarget) {
+            targetLookAt.current.lerp(liveTarget, 0.08)
+          }
+        }
+
         if (
           camera.position.distanceTo(targetCamPos.current) < 0.8 &&
           controls.target.distanceTo(targetLookAt.current) < 0.5
@@ -705,22 +868,11 @@ export default function CosmicSpace3D() {
         }
       }
 
-      // ── 6-SECOND IDLE 360° CINEMATIC AUTO-ROTATION ──
-      const idleMs = performance.now() - lastUserActivity.current
-      const shouldAutoRotate = idleMs > 6000 && !isUserInteracting.current && !isAnimatingToNode.current
-
-      if (shouldAutoRotate) {
-        // Smoothly blend in rotation speed (ease-in over ~1.5s)
-        autoRotateBlend.current = THREE.MathUtils.lerp(autoRotateBlend.current, 1.0, 0.02)
-      } else {
-        // Smoothly blend out rotation speed on user interaction
-        autoRotateBlend.current = THREE.MathUtils.lerp(autoRotateBlend.current, 0.0, 0.09)
-      }
-
-      if (autoRotateBlend.current > 0.005) {
+      // ── CONTINUOUS HYPNOTIC GALACTIC DRIFT (كايطوف ديما وما كيحبسش) ──
+      const isActivelyDragging = isUserInteracting.current
+      if (!isActivelyDragging && !isAnimatingToNode.current) {
         controls.autoRotate = true
-        // Smooth majestic speed (~0.48 rpm)
-        controls.autoRotateSpeed = 0.52 * autoRotateBlend.current
+        controls.autoRotateSpeed = 0.32 // majestic slow ~0.3 rpm
       } else {
         controls.autoRotate = false
       }
@@ -728,8 +880,7 @@ export default function CosmicSpace3D() {
       controls.update()
 
       // ═════════════════════════════════════════════════════════════
-      // ── 2D SCREEN-SPACE ANTI-COLLISION & SMART ELEVATION ENGINE ──
-      // Completely prevents overlapping label stacks and text collisions!
+      // ── 2D SCREEN-SPACE ANTI-COLLISION ENGINE ──
       // ═════════════════════════════════════════════════════════════
       const selId = selectedRef.current
       const hovId = hoveredIdRef.current
@@ -751,15 +902,18 @@ export default function CosmicSpace3D() {
 
       const candidates: CandidateLabel[] = []
 
+      // 1. Process Star Nodes
       nodesRef.current.forEach(node => {
-        tmpV.set(node.x, node.y, node.z ?? 0)
+        const livePos = livePositions.get(node.id)
+        if (!livePos) return
+        tmpV.copy(livePos)
         tmpV.project(camera)
         const inFrustum = tmpV.z < 1 && tmpV.z > -1 && Math.abs(tmpV.x) < 1.15 && Math.abs(tmpV.y) < 1.15
         if (!inFrustum) return
 
         const sx = ((tmpV.x + 1) * window.innerWidth) / 2
         const sy = ((-tmpV.y + 1) * window.innerHeight) / 2
-        const dist = camera.position.distanceTo(new THREE.Vector3(node.x, node.y, node.z ?? 0))
+        const dist = camera.position.distanceTo(livePos)
         if (dist > 950) return
 
         const isSkill = !node.parentId || node.parentId === 'origin'
@@ -767,9 +921,6 @@ export default function CosmicSpace3D() {
         const isHovered = node.id === hovId
         const isParentSelected = Boolean(selId && (node.parentId === selId || node.skillId === selId))
 
-        // Visibility rules:
-        // - Primary skills: always visible
-        // - Sub-nodes: visible when selected, hovered, or when parent cluster is selected
         const eligible = isSkill || isSelected || isHovered || isParentSelected
         if (!eligible) return
 
@@ -790,6 +941,34 @@ export default function CosmicSpace3D() {
           priority,
         })
       })
+
+      // 2. Process Supermassive Black Hole label
+      if (blackHoleRef.current) {
+        const bhPos = blackHoleRef.current.position
+        tmpV.copy(bhPos)
+        tmpV.project(camera)
+        if (tmpV.z < 1 && tmpV.z > -1 && Math.abs(tmpV.x) < 1.15 && Math.abs(tmpV.y) < 1.15) {
+          const sx = ((tmpV.x + 1) * window.innerWidth) / 2
+          const sy = ((-tmpV.y + 1) * window.innerHeight) / 2
+          const dist = camera.position.distanceTo(bhPos)
+          if (dist < 1600) {
+            candidates.push({
+              id: 'black-hole-singularity',
+              label: '✦ SINGULARITY (الثقب الأسود)',
+              color: '#ff9900',
+              type: 'goal',
+              isSkill: true,
+              x: sx,
+              y: sy,
+              visible: true,
+              isSelected: selId === 'black-hole-singularity',
+              isHovered: hovId === 'black-hole-singularity',
+              distance: dist,
+              priority: 70,
+            })
+          }
+        }
+      }
 
       // Sort: highest priority items claim their anchor position first
       candidates.sort((a, b) => b.priority - a.priority)
@@ -818,7 +997,6 @@ export default function CosmicSpace3D() {
         const baseY = cand.y + (cand.isSkill ? 18 : 12)
         const baseX = cand.x
 
-        // Potential offsets: [center, down, up, right, left, double-down, double-up]
         const testOffsets = [
           { dx: 0, dy: 0 },
           { dx: 0, dy: LABEL_H + PADDING },
@@ -854,28 +1032,42 @@ export default function CosmicSpace3D() {
           if (!collide) {
             chosen = off
             found = true
-            placedBoxes.push({ x: bLeft, y: bTop, w: LABEL_W, h: LABEL_H })
             break
           }
         }
 
-        // If no non-colliding spot exists and it is an unselected subnode, omit to preserve legibility
-        if (!found && !cand.isSelected && !cand.isHovered && !cand.isSkill) {
-          continue
-        }
+        if (found || cand.isSelected || cand.isHovered || cand.isSkill) {
+          const finalX = baseX + chosen.dx
+          const finalY = baseY + chosen.dy
 
-        resolved.push({
-          ...cand,
-          x: baseX + chosen.dx,
-          y: baseY + chosen.dy,
-        })
+          placedBoxes.push({
+            x: finalX - LABEL_W / 2,
+            y: finalY - LABEL_H / 2,
+            w: LABEL_W,
+            h: LABEL_H,
+          })
+
+          resolved.push({
+            id: cand.id,
+            label: cand.label,
+            color: cand.color,
+            type: cand.type,
+            isSkill: cand.isSkill,
+            x: finalX,
+            y: finalY,
+            visible: true,
+            isSelected: cand.isSelected,
+            isHovered: cand.isHovered,
+            distance: cand.distance,
+          })
+        }
       }
 
       setLabels(resolved)
-
       renderer.render(scene, camera)
     }
-    animate()
+
+    af = requestAnimationFrame(animate)
 
     return () => {
       cancelAnimationFrame(af)
@@ -888,11 +1080,15 @@ export default function CosmicSpace3D() {
       window.removeEventListener('touchmove', registerUserActivity)
       window.removeEventListener('click', onClick)
       window.removeEventListener('mindgalaxy:resetCamera', onResetCamEvent)
+      window.removeEventListener('mindgalaxy:flyToBlackHole', onFlyToBlackHoleEvent)
 
       shootingStars.dispose()
       scene.remove(nebulae)
       scene.remove(dustPoints)
       scene.remove(shootingStars.group)
+      if (blackHoleRef.current) {
+        scene.remove(blackHoleRef.current.group)
+      }
 
       renderer.dispose()
       if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement)
@@ -921,6 +1117,7 @@ export default function CosmicSpace3D() {
         {labels.map(lbl => {
           if (!lbl.visible || lbl.distance > 850) return null
           const isHovered = lbl.id === hoveredId
+          const isBlackHole = lbl.id === 'black-hole-singularity'
           const opacity = Math.max(0.28, Math.min(1, 1 - (lbl.distance - 140) / 710))
 
           return (
@@ -931,25 +1128,36 @@ export default function CosmicSpace3D() {
                 left: `${lbl.x}px`,
                 top: `${lbl.y}px`,
                 opacity: isHovered || lbl.isSelected ? 1 : opacity,
-                zIndex: isHovered || lbl.isSelected ? 30 : lbl.isSkill ? 20 : 10,
+                zIndex: isHovered || lbl.isSelected ? 30 : isBlackHole ? 25 : lbl.isSkill ? 20 : 10,
               }}
             >
               <div
                 className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-all ${
-                  lbl.isSelected
+                  isBlackHole
+                    ? 'bg-black/90 border-amber-500/50 shadow-[0_0_14px_rgba(255,160,0,0.35)]'
+                    : lbl.isSelected
                     ? 'bg-white/[0.18] border-white/80 shadow-lg scale-105'
                     : isHovered
                     ? 'bg-black/90 border-white/60 shadow-md scale-105'
                     : 'bg-black/80 border-white/[0.08]'
                 }`}
-                style={(lbl.isSelected || isHovered) ? { boxShadow: `0 0 16px ${lbl.color}88` } : {}}
+                style={(lbl.isSelected || isHovered) && !isBlackHole ? { boxShadow: `0 0 16px ${lbl.color}88` } : {}}
               >
                 <div
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: lbl.color, boxShadow: `0 0 8px ${lbl.color}` }}
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${isBlackHole ? 'animate-pulse' : ''}`}
+                  style={{
+                    background: isBlackHole ? '#ffaa00' : lbl.color,
+                    boxShadow: isBlackHole ? '0 0 8px #ffaa00' : `0 0 8px ${lbl.color}`,
+                  }}
                 />
                 <span className={`text-[10px] font-semibold tracking-wide whitespace-nowrap ${
-                  lbl.isSelected || isHovered ? 'text-white' : lbl.isSkill ? 'text-white/90' : 'text-white/60'
+                  isBlackHole
+                    ? 'text-amber-300 font-mono'
+                    : lbl.isSelected || isHovered
+                    ? 'text-white'
+                    : lbl.isSkill
+                    ? 'text-white/90'
+                    : 'text-white/60'
                 }`}>
                   {lbl.label}
                 </span>

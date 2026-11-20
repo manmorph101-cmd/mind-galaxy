@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { readStoreData, writeStoreData } from '@/lib/serverData'
+import { readStoreData, writeStoreData, isCloudDatabaseConfigured } from '@/lib/serverData'
 import type { GalaxyNode, GalaxyEdge } from '@/types'
 
 const CreateNodeSchema = z.object({
@@ -208,6 +208,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     nodes: userNodes,
     edges: userEdges,
+    isCloudSync: isCloudDatabaseConfigured(),
   })
 }
 

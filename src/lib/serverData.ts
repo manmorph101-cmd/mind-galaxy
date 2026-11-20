@@ -62,12 +62,45 @@ function sanitizeStoreData(parsed: any): GalaxyStoreData {
   return { users, nodes, edges }
 }
 
-// Optional PostgreSQL client if a valid DATABASE_URL is provided (e.g. Supabase, Neon)
+function readBundledStoreData(): GalaxyStoreData {
+  try {
+    if (fs.existsSync(BUNDLED_DATA_FILE)) {
+      const content = fs.readFileSync(BUNDLED_DATA_FILE, 'utf-8')
+      const parsed = JSON.parse(content)
+      return sanitizeStoreData(parsed)
+    }
+  } catch (err) {
+    console.warn('Failed reading bundled data:', err)
+  }
+  return getInitialData()
+}
+
+// Optional PostgreSQL client supporting Vercel Postgres, Neon, Supabase, Railway
 let sqlClient: ReturnType<typeof postgres> | null = null
 let dbInitialized = false
 
+export function isCloudDatabaseConfigured(): boolean {
+  const dbUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING
+
+  return Boolean(
+    dbUrl &&
+    !dbUrl.includes('[ref]') &&
+    !dbUrl.includes('[password]') &&
+    (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://'))
+  )
+}
+
 function getDatabaseClient() {
-  const dbUrl = process.env.DATABASE_URL
+  const dbUrl =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING
+
   if (
     !dbUrl ||
     dbUrl.includes('[ref]') ||
@@ -76,12 +109,13 @@ function getDatabaseClient() {
   ) {
     return null
   }
+
   if (!sqlClient) {
     try {
       sqlClient = postgres(dbUrl, {
         max: 1,
         idle_timeout: 10,
-        connect_timeout: 5,
+        connect_timeout: 8,
         ssl: 'require',
       })
     } catch (e) {
@@ -120,6 +154,16 @@ export async function readStoreData(): Promise<GalaxyStoreData> {
         inMemoryStore = sanitized
         return sanitized
       }
+
+      // If database table is new and empty, auto-seed with bundled data!
+      const initial = readBundledStoreData()
+      await sql`
+        INSERT INTO galaxy_global_store (id, data, updated_at)
+        VALUES ('main', ${JSON.stringify(initial)}::jsonb, NOW())
+        ON CONFLICT (id) DO NOTHING
+      `
+      inMemoryStore = initial
+      return initial
     } catch (dbErr) {
       console.warn('Postgres read failed, falling back to local file store:', dbErr)
     }
@@ -145,29 +189,18 @@ export async function readStoreData(): Promise<GalaxyStoreData> {
   }
 
   // 4. Try reading from bundled Git data file
-  try {
-    if (fs.existsSync(BUNDLED_DATA_FILE)) {
-      const content = fs.readFileSync(BUNDLED_DATA_FILE, 'utf-8')
-      const parsed = JSON.parse(content)
-      const data = sanitizeStoreData(parsed)
-      inMemoryStore = data
+  const data = readBundledStoreData()
+  inMemoryStore = data
 
-      if (IS_SERVERLESS) {
-        try {
-          fs.mkdirSync(path.dirname(targetFile), { recursive: true })
-          fs.writeFileSync(targetFile, JSON.stringify(data, null, 2))
-        } catch {
-          // ignore
-        }
-      }
-      return data
+  if (IS_SERVERLESS) {
+    try {
+      fs.mkdirSync(path.dirname(targetFile), { recursive: true })
+      fs.writeFileSync(targetFile, JSON.stringify(data, null, 2))
+    } catch {
+      // ignore
     }
-  } catch (err) {
-    console.warn('Failed reading bundled data:', err)
   }
-
-  inMemoryStore = getInitialData()
-  return inMemoryStore
+  return data
 }
 
 export async function writeStoreData(data: GalaxyStoreData): Promise<void> {

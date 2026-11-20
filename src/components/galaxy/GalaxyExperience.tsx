@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { useGalaxyStore } from '@/store/galaxyStore'
+import {
+  useGalaxyStore,
+  loadGalaxyFromLocalStorage,
+  saveGalaxyToLocalStorage,
+} from '@/store/galaxyStore'
 import HUD from '@/components/galaxy/HUD'
 import NodeDetailPanel from '@/components/panels/NodeDetailPanel'
 import AddNodeForm from '@/components/panels/AddNodeForm'
@@ -37,6 +41,7 @@ export default function GalaxyExperience() {
     setEdges,
     setLoading,
     selectNode,
+    clearGalaxyState,
   } = useGalaxyStore()
 
   const [addOpen, setAddOpen] = useState(false)
@@ -45,14 +50,56 @@ export default function GalaxyExperience() {
   // 1. Load Nodes & Edges for a specific Brain
   const loadGalaxyForUser = useCallback(
     async (userId: string) => {
-      setLoading(true)
+      // Step A: Immediately load from LocalStorage (0ms latency, zero data loss)
+      const cached = loadGalaxyFromLocalStorage(userId)
+      if (cached && cached.nodes.length > 0) {
+        setNodes(cached.nodes)
+        setEdges(cached.edges)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+
+      // Step B: Query server to sync
       try {
         const res = await fetch(`/api/nodes?userId=${encodeURIComponent(userId)}`)
-        const data = (await res.json()) as { nodes: GalaxyNode[]; edges: GalaxyEdge[] }
-        setNodes(data.nodes || [])
-        setEdges(data.edges || [])
+        if (res.ok) {
+          const serverData = (await res.json()) as { nodes: GalaxyNode[]; edges: GalaxyEdge[] }
+          const serverNodes = serverData.nodes || []
+          const serverEdges = serverData.edges || []
+
+          // SCENARIO 1: Server container cold restart wiped /tmp (0 nodes returned),
+          // but client HAS cached nodes! Re-seed server immediately to heal it.
+          if (cached && cached.nodes.length > 0 && serverNodes.length === 0) {
+            console.log('Server cold start detected. Re-seeding server from client local storage...')
+            await fetch('/api/nodes', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, nodes: cached.nodes, edges: cached.edges }),
+            })
+            return
+          }
+
+          // SCENARIO 2: Local cache has MORE nodes than server (offline additions)
+          if (cached && cached.nodes.length > serverNodes.length) {
+            console.log('Local client has newer nodes. Syncing to server...')
+            await fetch('/api/nodes', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId, nodes: cached.nodes, edges: cached.edges }),
+            })
+            return
+          }
+
+          // SCENARIO 3: Server has newer/more nodes, or local cache was empty
+          if (serverNodes.length > 0 || !cached || cached.nodes.length === 0) {
+            setNodes(serverNodes)
+            setEdges(serverEdges)
+            saveGalaxyToLocalStorage(userId, serverNodes, serverEdges)
+          }
+        }
       } catch (err) {
-        console.error('Failed to load galaxy data for user:', err)
+        console.warn('Server sync failed, running in offline/local mode:', err)
       } finally {
         setLoading(false)
       }
@@ -104,10 +151,8 @@ export default function GalaxyExperience() {
       localStorage.removeItem(ACTIVE_USER_STORAGE_KEY)
     }
     setCurrentUser(null)
-    setNodes([])
-    setEdges([])
-    selectNode(null)
-  }, [setCurrentUser, setNodes, setEdges, selectNode])
+    clearGalaxyState()
+  }, [setCurrentUser, clearGalaxyState])
 
   // 5. Camera Reset Dispatcher
   const handleResetCamera = useCallback(() => {

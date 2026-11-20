@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name or brain key is required' }, { status: 400 })
     }
 
-    const data = readStoreData()
+    const data = await readStoreData()
     const normalizedInput = rawName.toLowerCase()
 
     // 1. Check if user already exists (case-insensitive lookup, e.g. 'root')
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     data.users.push(newUser)
-    writeStoreData(data)
+    await writeStoreData(data)
 
     return NextResponse.json({ user: newUser, isNew: true })
   } catch (err) {

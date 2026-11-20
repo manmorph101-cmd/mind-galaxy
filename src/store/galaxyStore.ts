@@ -31,6 +31,75 @@ interface Camera {
   zoom: number
 }
 
+// ── BULLETPROOF LOCALSTORAGE CACHING & OFFLINE-FIRST PERSISTENCE ──
+const ACTIVE_USER_KEY = 'mind_galaxy_active_user'
+
+export function getActiveUserId(): string {
+  if (typeof window === 'undefined') return 'root'
+  try {
+    const raw = localStorage.getItem(ACTIVE_USER_KEY)
+    if (raw) {
+      const u = JSON.parse(raw)
+      if (u && u.id) return u.id
+    }
+  } catch {}
+  return 'root'
+}
+
+export function saveGalaxyToLocalStorage(
+  userId: string,
+  nodes: GalaxyNode[],
+  edges: GalaxyEdge[]
+) {
+  if (typeof window === 'undefined' || !userId) return
+  try {
+    const payload = {
+      userId,
+      nodes,
+      edges,
+      updatedAt: Date.now(),
+    }
+    const serialized = JSON.stringify(payload)
+    localStorage.setItem(`mind_galaxy_data_${userId}`, serialized)
+    localStorage.setItem(`mind_galaxy_snapshot_${userId}`, serialized)
+  } catch (err) {
+    console.warn('LocalStorage save error:', err)
+  }
+}
+
+export function loadGalaxyFromLocalStorage(
+  userId: string
+): { nodes: GalaxyNode[]; edges: GalaxyEdge[]; updatedAt: number } | null {
+  if (typeof window === 'undefined' || !userId) return null
+  try {
+    const raw = localStorage.getItem(`mind_galaxy_data_${userId}`)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && Array.isArray(parsed.nodes)) {
+        return {
+          nodes: parsed.nodes,
+          edges: Array.isArray(parsed.edges) ? parsed.edges : [],
+          updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
+        }
+      }
+    }
+    const rawSnap = localStorage.getItem(`mind_galaxy_snapshot_${userId}`)
+    if (rawSnap) {
+      const parsedSnap = JSON.parse(rawSnap)
+      if (parsedSnap && Array.isArray(parsedSnap.nodes)) {
+        return {
+          nodes: parsedSnap.nodes,
+          edges: Array.isArray(parsedSnap.edges) ? parsedSnap.edges : [],
+          updatedAt: typeof parsedSnap.updatedAt === 'number' ? parsedSnap.updatedAt : 0,
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('LocalStorage load error:', err)
+  }
+  return null
+}
+
 interface GalaxyStore {
   // Multi-user / Brain profile
   currentUser: BrainUser | null
@@ -58,6 +127,7 @@ interface GalaxyStore {
   addEdges: (edges: GalaxyEdge[]) => void
   updateNode: (id: string, updates: Partial<GalaxyNode>) => void
   removeNode: (id: string) => void
+  clearGalaxyState: () => void
   setCamera: (camera: Partial<Camera>) => void
   selectNode: (id: string | null) => void
   setLoading: (loading: boolean) => void
@@ -84,25 +154,71 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
   setAllUsers: (allUsers) => set({ allUsers }),
   setShowBrainSwitcher: (showBrainSwitcher) => set({ showBrainSwitcher }),
 
-  setNodes: (nodes) => set({ nodes }),
-  setEdges: (edges) => set({ edges }),
+  setNodes: (nodes) => {
+    set({ nodes })
+    const user = get().currentUser
+    if (user?.id) {
+      saveGalaxyToLocalStorage(user.id, nodes, get().edges)
+    }
+  },
+
+  setEdges: (edges) => {
+    set({ edges })
+    const user = get().currentUser
+    if (user?.id) {
+      saveGalaxyToLocalStorage(user.id, get().nodes, edges)
+    }
+  },
 
   addNode: (node) =>
-    set((s) => ({ nodes: [...s.nodes, node] })),
+    set((s) => {
+      const nextNodes = [...s.nodes, node]
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, nextNodes, s.edges)
+      }
+      return { nodes: nextNodes }
+    }),
 
   addNodes: (newNodes) =>
-    set((s) => ({ nodes: [...s.nodes, ...newNodes] })),
+    set((s) => {
+      const nextNodes = [...s.nodes, ...newNodes]
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, nextNodes, s.edges)
+      }
+      return { nodes: nextNodes }
+    }),
 
   addEdge: (edge) =>
-    set((s) => ({ edges: [...s.edges, edge] })),
+    set((s) => {
+      const nextEdges = [...s.edges, edge]
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, s.nodes, nextEdges)
+      }
+      return { edges: nextEdges }
+    }),
 
   addEdges: (newEdges) =>
-    set((s) => ({ edges: [...s.edges, ...newEdges] })),
+    set((s) => {
+      const nextEdges = [...s.edges, ...newEdges]
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, s.nodes, nextEdges)
+      }
+      return { edges: nextEdges }
+    }),
 
   updateNode: (id, updates) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
-    })),
+    set((s) => {
+      const nextNodes = s.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n))
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, nextNodes, s.edges)
+      }
+      return { nodes: nextNodes }
+    }),
 
   removeNode: (id) =>
     set((s) => {
@@ -110,11 +226,24 @@ export const useGalaxyStore = create<GalaxyStore>((set, get) => ({
       s.nodes.forEach((n) => {
         if (n.parentId === id || n.skillId === id) toDeleteIds.add(n.id)
       })
+      const nextNodes = s.nodes.filter((n) => !toDeleteIds.has(n.id))
+      const nextEdges = s.edges.filter((e) => !toDeleteIds.has(e.fromId) && !toDeleteIds.has(e.toId))
+      const user = s.currentUser
+      if (user?.id) {
+        saveGalaxyToLocalStorage(user.id, nextNodes, nextEdges)
+      }
       return {
-        nodes: s.nodes.filter((n) => !toDeleteIds.has(n.id)),
-        edges: s.edges.filter((e) => !toDeleteIds.has(e.fromId) && !toDeleteIds.has(e.toId)),
+        nodes: nextNodes,
+        edges: nextEdges,
         selectedNodeId: toDeleteIds.has(s.selectedNodeId ?? '') ? null : s.selectedNodeId,
       }
+    }),
+
+  clearGalaxyState: () =>
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
     }),
 
   setCamera: (camera) =>

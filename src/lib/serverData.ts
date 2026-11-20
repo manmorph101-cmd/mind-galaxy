@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import postgres from 'postgres'
 import type { GalaxyNode, GalaxyEdge, BrainUser } from '@/types'
 
 export interface GalaxyStoreData {
@@ -61,11 +62,75 @@ function sanitizeStoreData(parsed: any): GalaxyStoreData {
   return { users, nodes, edges }
 }
 
-export function readStoreData(): GalaxyStoreData {
+// Optional PostgreSQL client if a valid DATABASE_URL is provided (e.g. Supabase, Neon)
+let sqlClient: ReturnType<typeof postgres> | null = null
+let dbInitialized = false
+
+function getDatabaseClient() {
+  const dbUrl = process.env.DATABASE_URL
+  if (
+    !dbUrl ||
+    dbUrl.includes('[ref]') ||
+    dbUrl.includes('[password]') ||
+    (!dbUrl.startsWith('postgres://') && !dbUrl.startsWith('postgresql://'))
+  ) {
+    return null
+  }
+  if (!sqlClient) {
+    try {
+      sqlClient = postgres(dbUrl, {
+        max: 1,
+        idle_timeout: 10,
+        connect_timeout: 5,
+        ssl: 'require',
+      })
+    } catch (e) {
+      console.warn('Failed to initialize Postgres client:', e)
+      sqlClient = null
+    }
+  }
+  return sqlClient
+}
+
+async function ensureDbTable(sql: ReturnType<typeof postgres>) {
+  if (dbInitialized) return
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS galaxy_global_store (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `
+    dbInitialized = true
+  } catch (err) {
+    console.warn('Failed creating galaxy_global_store table:', err)
+  }
+}
+
+export async function readStoreData(): Promise<GalaxyStoreData> {
+  // 1. Try PostgreSQL cloud database if available
+  const sql = getDatabaseClient()
+  if (sql) {
+    try {
+      await ensureDbTable(sql)
+      const rows = await sql`SELECT data FROM galaxy_global_store WHERE id = 'main' LIMIT 1`
+      if (rows && rows.length > 0 && rows[0].data) {
+        const sanitized = sanitizeStoreData(rows[0].data)
+        inMemoryStore = sanitized
+        return sanitized
+      }
+    } catch (dbErr) {
+      console.warn('Postgres read failed, falling back to local file store:', dbErr)
+    }
+  }
+
+  // 2. Try in-memory store
   if (inMemoryStore) {
     return inMemoryStore
   }
 
+  // 3. Try reading from target file (e.g. /tmp on serverless or local)
   const targetFile = getDataFilePath()
 
   try {
@@ -79,6 +144,7 @@ export function readStoreData(): GalaxyStoreData {
     console.warn('Failed reading from target file, falling back to bundle:', err)
   }
 
+  // 4. Try reading from bundled Git data file
   try {
     if (fs.existsSync(BUNDLED_DATA_FILE)) {
       const content = fs.readFileSync(BUNDLED_DATA_FILE, 'utf-8')
@@ -104,8 +170,27 @@ export function readStoreData(): GalaxyStoreData {
   return inMemoryStore
 }
 
-export function writeStoreData(data: GalaxyStoreData) {
+export async function writeStoreData(data: GalaxyStoreData): Promise<void> {
   inMemoryStore = data
+
+  // 1. Persist to PostgreSQL if configured
+  const sql = getDatabaseClient()
+  if (sql) {
+    try {
+      await ensureDbTable(sql)
+      const jsonData = JSON.stringify(data)
+      await sql`
+        INSERT INTO galaxy_global_store (id, data, updated_at)
+        VALUES ('main', ${jsonData}::jsonb, NOW())
+        ON CONFLICT (id) DO UPDATE
+        SET data = EXCLUDED.data, updated_at = NOW()
+      `
+    } catch (dbErr) {
+      console.warn('Postgres write failed, continuing with file store:', dbErr)
+    }
+  }
+
+  // 2. Persist to target file
   const targetFile = getDataFilePath()
   try {
     fs.mkdirSync(path.dirname(targetFile), { recursive: true })

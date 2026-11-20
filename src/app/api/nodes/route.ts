@@ -200,7 +200,7 @@ function findCollisionFreeSubnodePosition(
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const userId = url.searchParams.get('userId') || 'root'
-  const data = readStoreData()
+  const data = await readStoreData()
 
   const userNodes = data.nodes.filter((n) => (n.userId || 'root') === userId)
   const userEdges = data.edges.filter((e) => (e.userId || 'root') === userId)
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
     const parsed = CreateNodeSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-    const data = readStoreData()
+    const data = await readStoreData()
     const userId = parsed.data.userId || 'root'
     const { parentId, label, category, description } = parsed.data
 
@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
 
       data.nodes.push(newNode)
       data.edges.push(edgeToOrigin)
-      writeStoreData(data)
+      await writeStoreData(data)
 
       return NextResponse.json({ node: newNode, nodes: [newNode], edge: edgeToOrigin, newEdges: [edgeToOrigin] })
     } else {
@@ -488,7 +488,7 @@ export async function POST(req: NextRequest) {
 
       data.nodes.push(...createdNodes)
       data.edges.push(...newEdges)
-      writeStoreData(data)
+      await writeStoreData(data)
 
       return NextResponse.json({
         node: createdNodes[0],
@@ -507,7 +507,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const { id, ...updates } = await req.json()
-    const data = readStoreData()
+    const data = await readStoreData()
 
     let updatedNode: GalaxyNode | null = null
     const affectedNodes: GalaxyNode[] = []
@@ -534,7 +534,7 @@ export async function PATCH(req: NextRequest) {
       return n
     })
 
-    writeStoreData(data)
+    await writeStoreData(data)
     return NextResponse.json({ node: updatedNode, affectedNodes })
   } catch (err) {
     console.error(err)
@@ -545,7 +545,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json()
-    const data = readStoreData()
+    const data = await readStoreData()
 
     const toDeleteIds = new Set<string>([id])
     data.nodes.forEach((n) => {
@@ -557,7 +557,7 @@ export async function DELETE(req: NextRequest) {
     data.nodes = data.nodes.filter((n) => !toDeleteIds.has(n.id))
     data.edges = data.edges.filter((e) => !toDeleteIds.has(e.fromId) && !toDeleteIds.has(e.toId))
 
-    writeStoreData(data)
+    await writeStoreData(data)
     return NextResponse.json({ success: true, deletedIds: Array.from(toDeleteIds) })
   } catch (err) {
     console.error(err)
@@ -575,11 +575,11 @@ export async function PUT(req: NextRequest) {
     const cleanNodes = inputNodes.map((n: GalaxyNode) => ({ ...n, userId }))
     const cleanEdges = inputEdges.map((e: GalaxyEdge) => ({ ...e, userId }))
 
-    const data = readStoreData()
+    const data = await readStoreData()
     data.nodes = data.nodes.filter((n) => (n.userId || 'root') !== userId).concat(cleanNodes)
     data.edges = data.edges.filter((e) => (e.userId || 'root') !== userId).concat(cleanEdges)
 
-    writeStoreData(data)
+    await writeStoreData(data)
     return NextResponse.json({ success: true, count: cleanNodes.length })
   } catch (err) {
     console.error(err)
